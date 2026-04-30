@@ -34,6 +34,7 @@ export interface Filters {
   municipality: string;
   region: string;
   type: string;
+  status?: string;
 }
 
 export interface Stats {
@@ -41,9 +42,10 @@ export interface Stats {
   municipalityCount: number;
   byType: { type: string; _count: number }[];
   byRegion: { region: string; _count: number }[];
+  byStatus?: { status: string; _count: number }[];
 }
 
-const API_BASE = 'http://94.141.97.178:3002/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://94.141.97.178:3002/api';
 
 export function useEntities(filters: Filters) {
   const [entities, setEntities] = useState<Entity[]>([]);
@@ -64,6 +66,7 @@ export function useEntities(filters: Filters) {
         if (filters.municipality) params.append('municipality', filters.municipality);
         if (filters.region) params.append('region', filters.region);
         if (filters.type) params.append('type', filters.type);
+        if (filters.status) params.append('status', filters.status);
 
         const res = await fetch(`${API_BASE}/entities?${params}`);
         if (!res.ok) throw new Error('Failed to fetch');
@@ -85,7 +88,7 @@ export function useEntities(filters: Filters) {
 
     load();
     return () => { cancelled = true; };
-  }, [filters.search, filters.category, filters.municipality, filters.region, filters.type, refreshKey]);
+  }, [filters.search, filters.category, filters.municipality, filters.region, filters.type, filters.status, refreshKey]);
 
   return { entities, loading, error, refetch: () => setRefreshKey(k => k + 1) };
 }

@@ -5,9 +5,11 @@ interface HeaderProps {
   onSectionChange: (section: string) => void;
   onCadastrar?: () => void;
   onAdmin?: () => void;
+  onLogout?: () => void;
+  showLogout?: boolean;
 }
 
-export function Header({ activeSection, onSectionChange, onCadastrar, onAdmin }: HeaderProps) {
+export function Header({ activeSection, onSectionChange, onCadastrar, onAdmin, onLogout, showLogout }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = ['INÍCIO', 'O PROJETO', 'MAPA', 'ASSOCIAÇÕES', 'CONTATO'];
@@ -42,6 +44,43 @@ export function Header({ activeSection, onSectionChange, onCadastrar, onAdmin }:
               {item}
             </a>
           ))}
+          
+          {/* Botões dentro do menu mobile */}
+          <div className="mobile-menu-actions">
+            {onCadastrar && (
+              <button 
+                className="btn-primary mobile-menu-btn-action" 
+                onClick={() => {
+                  onCadastrar();
+                  setMobileMenuOpen(false);
+                }}
+              >
+                CADASTRE SUA ENTIDADE
+              </button>
+            )}
+            {onAdmin && (
+              <button 
+                className="btn-secondary mobile-menu-btn-action" 
+                onClick={() => {
+                  onAdmin();
+                  setMobileMenuOpen(false);
+                }}
+              >
+                ⚙️ Painel Administrativo
+              </button>
+            )}
+            {showLogout && onLogout && (
+              <button 
+                className="btn-danger mobile-menu-btn-action" 
+                onClick={() => {
+                  onLogout();
+                  setMobileMenuOpen(false);
+                }}
+              >
+                🚪 Sair
+              </button>
+            )}
+          </div>
         </nav>
 
         <div className="header-buttons">
@@ -62,9 +101,18 @@ export function Header({ activeSection, onSectionChange, onCadastrar, onAdmin }:
           aria-label="Menu"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <line x1="3" y1="6" x2="21" y2="6"></line>
-            <line x1="3" y1="12" x2="21" y2="12"></line>
-            <line x1="3" y1="18" x2="21" y2="18"></line>
+            {mobileMenuOpen ? (
+              <>
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </>
+            ) : (
+              <>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+              </>
+            )}
           </svg>
         </button>
       </div>

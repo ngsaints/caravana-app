@@ -24,4 +24,5 @@ export interface Filters {
   municipality: string;
   region: string;
   type: string;
+  status?: string;
 }

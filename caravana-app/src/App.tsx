@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polygon, useMap } from 'react-leaflet';
+import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import { Header } from './components/Header';
 import { FilterSection } from './components/FilterSection';
@@ -48,19 +49,43 @@ const createMarkerIcon = (type: string) => {
 interface MapBoundsHandlerProps {
   positions: [number, number][];
   shouldFit: boolean;
+  selectedEntityId?: string | null;
+  entities?: any[];
 }
 
-function MapBoundsHandler({ positions, shouldFit }: MapBoundsHandlerProps) {
+function MapBoundsHandler({ positions, shouldFit, selectedEntityId, entities }: MapBoundsHandlerProps) {
   const map = useMap();
-  const hasFitRef = useRef(false);
 
   useEffect(() => {
-    if (shouldFit && positions.length > 0 && !hasFitRef.current) {
+    if (shouldFit && positions.length > 0) {
       const bounds = L.latLngBounds(positions);
       map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
-      hasFitRef.current = true;
     }
   }, [shouldFit, positions, map]);
+
+  useEffect(() => {
+    if (selectedEntityId && entities) {
+      const entity = entities.find((e: any) => e.id === selectedEntityId);
+      if (entity) {
+        map.setView([entity.lat, entity.lng], 15, {
+          animate: true,
+          duration: 1
+        });
+        
+        // Abrir popup da entidade após o zoom
+        setTimeout(() => {
+          map.eachLayer((layer: any) => {
+            if (layer instanceof L.Marker) {
+              const markerLatLng = layer.getLatLng();
+              if (markerLatLng.lat === entity.lat && markerLatLng.lng === entity.lng) {
+                layer.openPopup();
+              }
+            }
+          });
+        }, 500);
+      }
+    }
+  }, [selectedEntityId, entities, map]);
 
   useEffect(() => {
     setTimeout(() => map.invalidateSize(), 300);
@@ -72,12 +97,14 @@ function MapBoundsHandler({ positions, shouldFit }: MapBoundsHandlerProps) {
 function App() {
   const [currentPage, setCurrentPage] = useState<'home' | 'admin' | 'login'>('home');
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return sessionStorage.getItem('caravana_auth') === 'true';
+    // Usar localStorage para manter sessão permanente
+    return localStorage.getItem('caravana_auth') === 'true';
   });
   const [activeSection, setActiveSection] = useState('INÍCIO');
   const [mapView, setMapView] = useState<'map' | 'satellite'>('map');
   const [showForm, setShowForm] = useState(false);
   const [fitBounds, setFitBounds] = useState(false);
+  const [legendExpanded, setLegendExpanded] = useState(false);
   const [assocCount, setAssocCount] = useState(0);
   const [municipCount, setMunicipCount] = useState(0);
 
@@ -88,6 +115,16 @@ function App() {
     region: '',
     type: ''
   });
+
+  // Reset fitBounds após ser usado
+  useEffect(() => {
+    if (fitBounds) {
+      const timer = setTimeout(() => {
+        setFitBounds(false);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [fitBounds]);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -113,6 +150,7 @@ function App() {
   const stats = useStats();
 
   const filteredEntities = useMemo(() => {
+    // Mostra apenas entidades ativas (aprovadas) no mapa público
     return entities.filter((e) => e.status === 'active');
   }, [entities]);
 
@@ -151,14 +189,30 @@ function App() {
     }
   }, [stats]);
 
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
+
+  // Limpar selectedEntityId após 2 segundos
+  useEffect(() => {
+    if (selectedEntityId) {
+      const timer = setTimeout(() => {
+        setSelectedEntityId(null);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedEntityId]);
+
   const handleViewOnMap = (entityId?: string) => {
     setMapView('map');
     setActiveSection('MAPA');
     if (entityId) {
-      const entity = filteredEntities.find((e) => e.id === entityId);
-      if (entity) {
-        setFitBounds(true);
-      }
+      setSelectedEntityId(entityId);
+      // Scroll suave para o mapa
+      setTimeout(() => {
+        const mapElement = document.querySelector('.map-wrapper');
+        if (mapElement) {
+          mapElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
     }
   };
 
@@ -175,7 +229,7 @@ function App() {
   const handleLogin = (password: string) => {
     if (password === ADMIN_PASSWORD) {
       setIsAuthenticated(true);
-      sessionStorage.setItem('caravana_auth', 'true');
+      localStorage.setItem('caravana_auth', 'true'); // Mudado para localStorage
       setCurrentPage('admin');
       return true;
     }
@@ -184,7 +238,7 @@ function App() {
 
   const handleLogout = () => {
     setIsAuthenticated(false);
-    sessionStorage.removeItem('caravana_auth');
+    localStorage.removeItem('caravana_auth'); // Mudado para localStorage
     window.location.hash = '';
     setCurrentPage('home');
   };
@@ -210,8 +264,10 @@ function App() {
           onSectionChange={setActiveSection}
           onCadastrar={() => setShowForm(true)}
           onAdmin={() => {}}
+          onLogout={handleLogout}
+          showLogout={true}
         />
-        <button className="btn-logout" onClick={handleLogout}>
+        <button className="btn-logout btn-logout-desktop" onClick={handleLogout}>
           Sair
         </button>
         <AdminPanel onBack={handleLogout} />
@@ -278,28 +334,35 @@ function App() {
               <button
                 className={`map-control-btn ${mapView === 'map' ? 'active' : ''}`}
                 onClick={() => setMapView('map')}
+                title="Visualização de mapa"
               >
-                Mapa
+                🗺️ Mapa
               </button>
               <button
                 className={`map-control-btn ${mapView === 'satellite' ? 'active' : ''}`}
                 onClick={() => setMapView('satellite')}
+                title="Visualização de satélite"
               >
-                Satélite
+                🛰️ Satélite
               </button>
               <button
                 className="map-control-btn"
                 onClick={handleShowAllOnMap}
-                title="Ver todas no mapa"
+                title="Ajustar zoom para ver todas as entidades"
               >
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M15 3l6 6-9 9-6-6 9-9z"></path>
-                  <path d="M9 21l-6-6 9-9 6 6-9 9z"></path>
-                </svg>
+                🎯 Ver Todas
               </button>
             </div>
 
-            <div className="map-legend">
+            <div className={`map-legend ${legendExpanded ? 'expanded' : 'collapsed'}`}>
+              <div 
+                className="legend-toggle" 
+                onClick={() => setLegendExpanded(!legendExpanded)}
+                title={legendExpanded ? 'Ocultar legenda' : 'Mostrar legenda'}
+              >
+                {legendExpanded ? '✕' : '📍'}
+              </div>
+              <div className="legend-header">Tipos de Entidades</div>
               {Object.entries(TYPE_CONFIG).map(([type, config]) => (
                 <div key={type} className="legend-item">
                   <span className="legend-dot" style={{ backgroundColor: config.color }}></span>
@@ -311,50 +374,55 @@ function App() {
             <MapContainer
               center={[-19.92, -40.31]}
               zoom={8}
-              style={{ width: '100%', height: '520px', borderRadius: '14px' }}
-              zoomControl={true}
+              style={{ width: '100%', height: '100%', borderRadius: '14px' }}
+              zoomControl={false}
             >
               <TileLayer
                 url={mapView === 'satellite' ? satelliteUrl : streetUrl}
                 attribution={mapView === 'satellite' ? '© Esri' : '© OpenStreetMap contributors'}
               />
-              <Polygon
-                positions={esBoundary}
-                color="#1A7A63"
-                weight={2}
-                fillColor="#2A9D7B"
-                fillOpacity={0.15}
-                smoothFactor={1}
-              />
-              {filteredEntities.map((entity) => (
-                <Marker
-                  key={entity.id}
-                  position={[entity.lat, entity.lng]}
-                  icon={createMarkerIcon(entity.type)}
-                >
-                  <Popup className="entity-popup">
-                    <div className="popup-content">
-                      <h3>{entity.name}</h3>
-                      <span className={`entity-badge type-${entity.type}`}>
-                        {TYPE_CONFIG[entity.type]?.label || entity.type}
-                      </span>
-                      <div className="popup-details">
-                        <p><strong>Categoria:</strong> {entity.category}</p>
-                        <p><strong>Município:</strong> {entity.municipality} - {entity.region}</p>
-                        {entity.address && <p><strong>Endereço:</strong> {entity.address}</p>}
-                        {entity.phone && <p><strong>Telefone:</strong> {entity.phone}</p>}
-                        {entity.email && <p><strong>Email:</strong> {entity.email}</p>}
-                        {entity.website && <p><strong>Website:</strong> <a href={entity.website} target="_blank" rel="noopener noreferrer">{entity.website}</a></p>}
-                        {entity.socialMedia && <p><strong>Redes:</strong> {entity.socialMedia}</p>}
-                        {entity.services && <p><strong>Serviços:</strong> {entity.services}</p>}
-                        {entity.description && <p className="description">{entity.description}</p>}
-                        {entity.foundedYear && <p><strong>Fundação:</strong> {entity.foundedYear}</p>}
+              <MarkerClusterGroup
+                chunkedLoading
+                maxClusterRadius={50}
+                spiderfyOnMaxZoom={true}
+                showCoverageOnHover={false}
+                zoomToBoundsOnClick={true}
+              >
+                {filteredEntities.map((entity) => (
+                  <Marker
+                    key={entity.id}
+                    position={[entity.lat, entity.lng]}
+                    icon={createMarkerIcon(entity.type)}
+                  >
+                    <Popup className="entity-popup">
+                      <div className="popup-content">
+                        <h3>{entity.name}</h3>
+                        <span className={`entity-badge type-${entity.type}`}>
+                          {TYPE_CONFIG[entity.type]?.label || entity.type}
+                        </span>
+                        <div className="popup-details">
+                          <p><strong>Categoria:</strong> {entity.category}</p>
+                          <p><strong>Município:</strong> {entity.municipality} - {entity.region}</p>
+                          {entity.address && <p><strong>Endereço:</strong> {entity.address}</p>}
+                          {entity.phone && <p><strong>Telefone:</strong> {entity.phone}</p>}
+                          {entity.email && <p><strong>Email:</strong> {entity.email}</p>}
+                          {entity.website && <p><strong>Website:</strong> <a href={entity.website} target="_blank" rel="noopener noreferrer">{entity.website}</a></p>}
+                          {entity.socialMedia && <p><strong>Redes:</strong> {entity.socialMedia}</p>}
+                          {entity.services && <p><strong>Serviços:</strong> {entity.services}</p>}
+                          {entity.description && <p className="description">{entity.description}</p>}
+                          {entity.foundedYear && <p><strong>Fundação:</strong> {entity.foundedYear}</p>}
+                        </div>
                       </div>
-                    </div>
-                  </Popup>
-                </Marker>
-              ))}
-              <MapBoundsHandler positions={entityPositions} shouldFit={fitBounds} />
+                    </Popup>
+                  </Marker>
+                ))}
+              </MarkerClusterGroup>
+              <MapBoundsHandler 
+                positions={entityPositions} 
+                shouldFit={fitBounds}
+                selectedEntityId={selectedEntityId}
+                entities={filteredEntities}
+              />
             </MapContainer>
           </div>
         </section>

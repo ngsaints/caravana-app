@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useEntities, useStats, ENTITY_TYPES, CATEGORIES, useMunicipalities, useCreateEntity, useScraperStatus, useExportEntities, useScraperConfigure, useScraperRunApify, useScraperRunGemini, useScraperEnrich, type Entity } from '../hooks/useApi';
 
 interface AdminPanelProps {
@@ -7,29 +7,48 @@ interface AdminPanelProps {
 
 const ITEMS_PER_PAGE = 10;
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://94.141.97.178:3002/api';
+
 export function AdminPanel({ onBack }: AdminPanelProps) {
   const [selectedEntities, setSelectedEntities] = useState<Set<string>>(new Set());
   const [isEditing, setIsEditing] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   const { entities, loading, error, refetch } = useEntities({
     search: '',
     category: '',
     municipality: '',
     region: '',
-    type: ''
+    type: '',
+    status: statusFilter === 'all' ? undefined : statusFilter
   });
   const stats = useStats();
   const municipalities = useMunicipalities();
   const { create, loading: creating } = useCreateEntity();
-const scraperStatus = useScraperStatus();
+  const [scraperStatus, setScraperStatus] = useState<{ configured: boolean; hasApify: boolean; hasGemini: boolean; geminiTokenCount?: number; lastUpdated: string | null } | null>(null);
+  
+  const fetchScraperStatus = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/scraper/status`);
+      const data = await res.json();
+      setScraperStatus(data);
+    } catch {
+      setScraperStatus({ configured: false, hasApify: false, hasGemini: false, lastUpdated: null });
+    }
+  };
   const { exportEntities } = useExportEntities();
   const { configure: configureScraper, loading: configuringScraper } = useScraperConfigure();
   const { runApify, loading: runningApify } = useScraperRunApify();
   const { runGemini, loading: runningGemini } = useScraperRunGemini();
   const { enrich, loading: enriching } = useScraperEnrich();
+
+  // Carregar status do scraper ao montar o componente
+  useEffect(() => {
+    fetchScraperStatus();
+  }, []);
 
   const [showScraperConfig, setShowScraperConfig] = useState(false);
   const [scraperToken, setScraperToken] = useState('');
@@ -37,6 +56,36 @@ const scraperStatus = useScraperStatus();
   const [scraperMessage, setScraperMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [geminiMaxMun, setGeminiMaxMun] = useState(5);
+
+  // Carregar tokens salvos quando abrir o modal
+  useEffect(() => {
+    if (showScraperConfig) {
+      loadSavedTokens();
+    }
+  }, [showScraperConfig]);
+
+  const loadSavedTokens = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/scraper/config`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.apifyToken) {
+          // Mostrar apenas últimos 10 caracteres
+          const masked = '•'.repeat(Math.max(0, data.apifyToken.length - 10)) + data.apifyToken.slice(-10);
+          setScraperToken(masked);
+        }
+        if (data.geminiTokens && data.geminiTokens.length > 0) {
+          // Mostrar apenas últimos 10 caracteres de cada token
+          const maskedTokens = data.geminiTokens.map((t: string) => 
+            '•'.repeat(Math.max(0, t.length - 10)) + t.slice(-10)
+          );
+          setGeminiTokens(maskedTokens);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao carregar tokens:', err);
+    }
+  };
 
   const addGeminiToken = () => {
     setGeminiTokens([...geminiTokens, '']);
@@ -114,7 +163,7 @@ const scraperStatus = useScraperStatus();
     try {
       await Promise.all(
         Array.from(selectedEntities).map(id =>
-          fetch(`http://94.141.97.178:3002/api/entities/${id}`, { method: 'DELETE' })
+          fetch(`${API_BASE.replace('/api', '')}/api/entities/${id}`, { method: 'DELETE' })
         )
       );
       setSelectedEntities(new Set());
@@ -215,11 +264,79 @@ const scraperStatus = useScraperStatus();
 
   const handleDelete = async (id: string) => {
     try {
-      await fetch(`http://94.141.97.178:3002/api/entities/${id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE.replace('/api', '')}/api/entities/${id}`, { method: 'DELETE' });
       setDeleteConfirm(null);
       refetch();
     } catch (err) {
       console.error('Failed to delete:', err);
+    }
+  };
+
+  const handleApprove = async (id: string) => {
+    try {
+      await fetch(`${API_BASE.replace('/api', '')}/api/entities/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active' })
+      });
+      refetch();
+    } catch (err) {
+      console.error('Failed to approve:', err);
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    try {
+      await fetch(`${API_BASE.replace('/api', '')}/api/entities/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'inactive' })
+      });
+      refetch();
+    } catch (err) {
+      console.error('Failed to reject:', err);
+    }
+  };
+
+  const handleBulkApprove = async () => {
+    if (selectedEntities.size === 0) return;
+    if (!confirm(`Aprovar ${selectedEntities.size} entidade(s)?`)) return;
+
+    try {
+      await Promise.all(
+        Array.from(selectedEntities).map(id =>
+          fetch(`${API_BASE.replace('/api', '')}/api/entities/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'active' })
+          })
+        )
+      );
+      setSelectedEntities(new Set());
+      refetch();
+    } catch (err) {
+      console.error('Failed to bulk approve:', err);
+    }
+  };
+
+  const handleBulkReject = async () => {
+    if (selectedEntities.size === 0) return;
+    if (!confirm(`Rejeitar ${selectedEntities.size} entidade(s)?`)) return;
+
+    try {
+      await Promise.all(
+        Array.from(selectedEntities).map(id =>
+          fetch(`${API_BASE.replace('/api', '')}/api/entities/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'inactive' })
+          })
+        )
+      );
+      setSelectedEntities(new Set());
+      refetch();
+    } catch (err) {
+      console.error('Failed to bulk reject:', err);
     }
   };
 
@@ -351,116 +468,162 @@ const scraperStatus = useScraperStatus();
             <div className="stat-number">{stats.municipalityCount}</div>
             <div className="stat-label">Municípios</div>
           </div>
+          {stats.byStatus && stats.byStatus.map((item) => (
+            <div key={item.status} className="stat-card">
+              <div className="stat-number">{item._count}</div>
+              <div className="stat-label">
+                {item.status === 'pending' ? 'Pendentes' : 
+                 item.status === 'active' ? 'Ativos' : 
+                 item.status === 'inactive' ? 'Inativos' : item.status}
+              </div>
+            </div>
+          ))}
           {stats.byType.slice(0, 3).map((item) => (
             <div key={item.type} className="stat-card">
               <div className="stat-number">{item._count}</div>
-              <div className="stat-label">{ENTITY_TYPES.find(t => t.value === item.type)?.label.split(' ')[0] || item.type}</div>
+              <div className="stat-label">{ENTITY_TYPES.find(t => t.value === item.type)?.label || item.type}</div>
             </div>
           ))}
         </div>
       )}
 
       <div className="admin-toolbar">
-        <div className="search-box">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <input
-            type="text"
-            placeholder="Pesquisar entidades..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-          />
+        <div className="toolbar-row">
+          <div className="search-box">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input
+              type="text"
+              placeholder="Pesquisar entidades..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
+          
+          <div className="filter-group">
+            <label>Status:</label>
+            <select 
+              value={statusFilter} 
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+            >
+              <option value="all">Todos</option>
+              <option value="pending">Pendentes</option>
+              <option value="active">Ativos</option>
+              <option value="inactive">Inativos</option>
+            </select>
+          </div>
         </div>
-        <div className="toolbar-actions">
-          <button className="btn-primary" onClick={handleNew}>+ Nova</button>
-          {selectedEntities.size > 0 && (
-            <button className="btn-danger" onClick={handleDeleteSelected}>
-              Excluir Selecionados ({selectedEntities.size})
+
+        <div className="toolbar-row">
+          <div className="button-group">
+            <span className="group-label">Entidades:</span>
+            <button className="btn-primary" onClick={handleNew}>
+              <span>➕</span> Nova Entidade
             </button>
-          )}
-          <button className="btn-secondary" onClick={() => exportEntities()}>
-            Exportar CSV
-          </button>
-          <button className="btn-secondary" onClick={() => setShowImportModal(true)}>
-            Importar CSV
-          </button>
-          <button 
-            className={`btn-secondary ${scraperStatus?.hasApify ? 'btn-success' : ''}`}
-            onClick={() => setShowScraperConfig(!showScraperConfig)}
-          >
-            {scraperStatus?.hasApify ? '🔗 Apify OK' : '⚙️ Apify'}
-          </button>
-          <button
-            className={`btn-secondary ${scraperStatus?.hasGemini ? 'btn-success' : ''}`}
-            onClick={() => setShowScraperConfig(!showScraperConfig)}
-          >
-            {scraperStatus?.hasGemini ? '🤖 Gemini OK' : '🤖 Gemini'}
-          </button>
-          {scraperStatus?.configured && (
-            <button
-              className="btn-primary"
-              onClick={async () => {
-                if (confirm('Iniciar scraping com Apify? Isso pode levar vários minutos...')) {
-                  try {
-                    const result = await runApify();
-                    alert(`Scraping concluído! Found: ${result.totalFound}, Imported: ${result.imported}, Skipped: ${result.skipped}`);
-                    refetch();
-                  } catch (err) {
-                    alert('Erro ao executar scraper');
-                  }
-                }
-              }}
-              disabled={runningApify}
+            {selectedEntities.size > 0 && (
+              <>
+                <button className="btn-success" onClick={handleBulkApprove}>
+                  <span>✓</span> Aprovar ({selectedEntities.size})
+                </button>
+                <button className="btn-warning" onClick={handleBulkReject}>
+                  <span>✗</span> Rejeitar ({selectedEntities.size})
+                </button>
+                <button className="btn-danger" onClick={handleDeleteSelected}>
+                  <span>🗑️</span> Excluir ({selectedEntities.size})
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="button-group">
+            <span className="group-label">Importar/Exportar:</span>
+            <button className="btn-secondary" onClick={() => exportEntities()}>
+              <span>📥</span> Exportar CSV
+            </button>
+            <button className="btn-secondary" onClick={() => setShowImportModal(true)}>
+              <span>📤</span> Importar CSV
+            </button>
+          </div>
+
+          <div className="button-group">
+            <span className="group-label">Scraper:</span>
+            <button 
+              className={`btn-secondary ${scraperStatus?.hasApify || scraperStatus?.hasGemini ? 'btn-configured' : ''}`}
+              onClick={() => setShowScraperConfig(!showScraperConfig)}
             >
-              {runningApify ? '⏳ Executando...' : '🌐 Executar Apify Scraper'}
+              <span>⚙️</span> Configurar
+              {(scraperStatus?.hasApify || scraperStatus?.hasGemini) && <span className="badge-ok">✓</span>}
             </button>
-          )}
-          {scraperStatus?.configured && (
-            <button
-              className="btn-secondary"
-              onClick={async () => {
-                const munCount = prompt(`Quantos municípios buscar? (1-${geminiMaxMun})`, String(geminiMaxMun));
-                if (!munCount) return;
-                const count = parseInt(munCount) || geminiMaxMun;
-                if (confirm(`Iniciar busca com Gemini em ${count} municípios? Isso pode levar vários minutos...`)) {
-                  try {
-                    const result = await runGemini(count);
-                    alert(`Busca concluída! Found: ${result.totalFound}, Imported: ${result.imported}, Skipped: ${result.skipped}\n${result.message || ''}`);
-                    refetch();
-                  } catch (err) {
-                    alert('Erro ao executar busca Gemini');
-                  }
-                }
-              }}
-              disabled={runningGemini}
-            >
-              {runningGemini ? '⏳ Executando...' : '🤖 Gemini Maps'}
-            </button>
-          )}
-          {scraperStatus?.configured && (
-            <button
-              className="btn-secondary"
-              onClick={async () => {
-                if (confirm('Enriquecer entidades existentes com Gemini? Selecione primeiro as entidades na lista.')) {
-                  try {
-                    const result = await enrich();
-                    alert(`Enriquecimento concluído! Updated: ${result.updated}`);
-                    refetch();
-                  } catch (err) {
-                    alert('Erro ao enriquecer entidades');
-                  }
-                }
-              }}
-              disabled={enriching}
-            >
-              {enriching ? '⏳ Enriquecendo...' : '✨ Enrich with Gemini'}
-            </button>
-          )}
+            
+            {scraperStatus?.configured && (
+              <>
+                <button
+                  className="btn-action"
+                  onClick={async () => {
+                    if (confirm('Iniciar scraping com Apify? Isso pode levar vários minutos...')) {
+                      try {
+                        const result = await runApify();
+                        alert(`Scraping concluído! Found: ${result.totalFound}, Imported: ${result.imported}, Skipped: ${result.skipped}`);
+                        refetch();
+                      } catch (err) {
+                        alert('Erro ao executar scraper');
+                      }
+                    }
+                  }}
+                  disabled={runningApify}
+                >
+                  {runningApify ? '⏳ Executando...' : '🔗 Apify'}
+                </button>
+                
+                <button
+                  className="btn-action"
+                  onClick={async () => {
+                    const munCount = prompt(`Quantos municípios buscar? (1-${geminiMaxMun})`, String(geminiMaxMun));
+                    if (!munCount) return;
+                    const count = parseInt(munCount) || geminiMaxMun;
+                    if (confirm(`Iniciar busca com Gemini em ${count} municípios? Isso pode levar vários minutos...`)) {
+                      try {
+                        const result = await runGemini(count);
+                        alert(`Busca concluída! Found: ${result.totalFound}, Imported: ${result.imported}, Skipped: ${result.skipped}\n${result.message || ''}`);
+                        refetch();
+                      } catch (err) {
+                        alert('Erro ao executar busca Gemini');
+                      }
+                    }
+                  }}
+                  disabled={runningGemini}
+                >
+                  {runningGemini ? '⏳ Executando...' : '🤖 Gemini'}
+                </button>
+                
+                <button
+                  className="btn-action"
+                  onClick={async () => {
+                    if (confirm('Enriquecer entidades existentes com Gemini?')) {
+                      try {
+                        const result = await enrich();
+                        alert(`Enriquecimento concluído! Updated: ${result.updated}`);
+                        refetch();
+                      } catch (err) {
+                        alert('Erro ao enriquecer entidades');
+                      }
+                    }
+                  }}
+                  disabled={enriching}
+                >
+                  {enriching ? '⏳ Enriquecendo...' : '✨ Enriquecer'}
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -470,73 +633,81 @@ const scraperStatus = useScraperStatus();
         <div className="form-error">{error}</div>
       ) : (
         <>
-          <table className="associations-table admin-table">
-            <thead>
-              <tr>
-                <th className="checkbox-col">
-                  <input
-                    type="checkbox"
-                    checked={paginatedEntities.length > 0 && selectedEntities.size === paginatedEntities.length}
-                    onChange={handleSelectAll}
-                  />
-                </th>
-                <th>Nome</th>
-                <th>Tipo</th>
-                <th>Município</th>
-                <th>Categoria</th>
-                <th>Status</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedEntities.length === 0 ? (
+          <div className="admin-table-wrapper">
+            <table className="associations-table admin-table">
+              <thead>
                 <tr>
-                  <td colSpan={7} className="table-empty">
-                    {searchQuery ? 'Nenhuma entidade encontrada' : 'Nenhuma entidade cadastrada'}
-                  </td>
+                  <th className="checkbox-col">
+                    <input
+                      type="checkbox"
+                      checked={paginatedEntities.length > 0 && selectedEntities.size === paginatedEntities.length}
+                      onChange={handleSelectAll}
+                    />
+                  </th>
+                  <th>Nome</th>
+                  <th>Tipo</th>
+                  <th>Município</th>
+                  <th>Categoria</th>
+                  <th>Status</th>
+                  <th>Ações</th>
                 </tr>
-              ) : (
-                paginatedEntities.map((entity) => (
-                  <tr key={entity.id} className={selectedEntities.has(entity.id) ? 'selected' : ''}>
-                    <td className="checkbox-col">
-                      <input
-                        type="checkbox"
-                        checked={selectedEntities.has(entity.id)}
-                        onChange={() => handleSelectEntity(entity.id)}
-                      />
-                    </td>
-                    <td>
-                      <strong>{entity.name}</strong>
-                    </td>
-                    <td>
-                      <span className={`entity-type type-${entity.type}`}>
-                        {ENTITY_TYPES.find(t => t.value === entity.type)?.label || entity.type}
-                      </span>
-                    </td>
-                    <td>{entity.municipality}</td>
-                    <td>{entity.category}</td>
-                    <td>
-                      <span className={`status-badge ${entity.status}`}>{entity.status}</span>
-                    </td>
-                    <td>
-                      <div className="action-buttons">
-                        <button className="btn-edit" onClick={() => handleEdit(entity)}>Editar</button>
-                        {deleteConfirm === entity.id ? (
-                          <div className="delete-confirm">
-                            <span>Excluir?</span>
-                            <button className="btn-delete" onClick={() => handleDelete(entity.id)}>Sim</button>
-                            <button className="btn-cancel" onClick={() => setDeleteConfirm(null)}>Não</button>
-                          </div>
-                        ) : (
-                          <button className="btn-delete" onClick={() => setDeleteConfirm(entity.id)}>Excluir</button>
-                        )}
-                      </div>
+              </thead>
+              <tbody>
+                {paginatedEntities.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="table-empty">
+                      {searchQuery ? 'Nenhuma entidade encontrada' : 'Nenhuma entidade cadastrada'}
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  paginatedEntities.map((entity) => (
+                    <tr key={entity.id} className={selectedEntities.has(entity.id) ? 'selected' : ''}>
+                      <td className="checkbox-col">
+                        <input
+                          type="checkbox"
+                          checked={selectedEntities.has(entity.id)}
+                          onChange={() => handleSelectEntity(entity.id)}
+                        />
+                      </td>
+                      <td>
+                        <strong>{entity.name}</strong>
+                      </td>
+                      <td>
+                        <span className={`entity-type type-${entity.type}`}>
+                          {ENTITY_TYPES.find(t => t.value === entity.type)?.label || entity.type}
+                        </span>
+                      </td>
+                      <td>{entity.municipality}</td>
+                      <td>{entity.category}</td>
+                      <td>
+                        <span className={`status-badge ${entity.status}`}>{entity.status}</span>
+                      </td>
+                      <td>
+                        <div className="action-buttons">
+                          {entity.status === 'pending' && (
+                            <>
+                              <button className="btn-success" onClick={() => handleApprove(entity.id)} title="Aprovar">✓</button>
+                              <button className="btn-warning" onClick={() => handleReject(entity.id)} title="Rejeitar">✗</button>
+                            </>
+                          )}
+                          <button className="btn-edit" onClick={() => handleEdit(entity)}>Editar</button>
+                          {deleteConfirm === entity.id ? (
+                            <div className="delete-confirm">
+                              <span>Excluir?</span>
+                              <button className="btn-delete" onClick={() => handleDelete(entity.id)}>Sim</button>
+                              <button className="btn-cancel" onClick={() => setDeleteConfirm(null)}>Não</button>
+                            </div>
+                          ) : (
+                            <button className="btn-delete" onClick={() => setDeleteConfirm(entity.id)}>Excluir</button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
 
           {totalPages > 1 && (
             <div className="pagination">
@@ -584,7 +755,18 @@ const scraperStatus = useScraperStatus();
                 <h3>🔗 Configurar Scraper</h3>
                 
                 <div style={{marginTop: '1rem'}}>
-                  <label style={{fontWeight: 'bold'}}>API Keys Gemini</label>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                    <label style={{fontWeight: 'bold'}}>API Keys Gemini</label>
+                    {geminiTokens.some(t => t.trim()) && (
+                      <button
+                        type="button"
+                        onClick={() => setGeminiTokens([''])}
+                        style={{padding: '0.25rem 0.5rem', background: '#e74c3c', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem'}}
+                      >
+                        🗑️ Limpar Todas
+                      </button>
+                    )}
+                  </div>
                   <p style={{fontSize: '0.85rem', color: '#666'}}>
                     Adicione múltiplas chaves para fallback e balanceamento de carga
                   </p>
@@ -618,7 +800,18 @@ const scraperStatus = useScraperStatus();
                 </div>
 
                 <div style={{marginTop: '1rem'}}>
-                  <label style={{fontWeight: 'bold'}}>Token Apify (opcional)</label>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                    <label style={{fontWeight: 'bold'}}>Token Apify</label>
+                    {scraperToken && (
+                      <button
+                        type="button"
+                        onClick={() => setScraperToken('')}
+                        style={{padding: '0.25rem 0.5rem', background: '#e74c3c', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem'}}
+                      >
+                        🗑️ Limpar
+                      </button>
+                    )}
+                  </div>
                   <p style={{fontSize: '0.85rem', color: '#666'}}>
                     Para usar Apify como fallback
                   </p>
@@ -663,6 +856,8 @@ const scraperStatus = useScraperStatus();
                         const validTokens = geminiTokens.filter(t => t.trim());
                         await configureScraper(scraperToken, '', validTokens);
                         setScraperMessage({type: 'success', text: `Tokens salvos! (${validTokens.length} chaves Gemini)`});
+                        // Atualizar status do scraper
+                        await fetchScraperStatus();
                       } catch (err: any) {
                         setScraperMessage({type: 'error', text: err.message || 'Erro ao salvar'});
                       }
@@ -713,7 +908,7 @@ const scraperStatus = useScraperStatus();
                       });
                       if (entities.length > 0) {
                         try {
-                          const res = await fetch('http://94.141.97.178:3002/api/entities/import', {
+                          const res = await fetch(`${API_BASE.replace('/api', '')}/api/entities/import`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ entities })
