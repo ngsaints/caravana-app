@@ -1,0 +1,191 @@
+{
+  "regions": [
+    {
+      "name": "Região Imediata de Vitória",
+      "municipalities": [
+        { "name": "Vitória", "lat": -20.3155, "lng": -40.3128 },
+        { "name": "Vila Velha", "lat": -20.3297, "lng": -40.2925 },
+        { "name": "Serra", "lat": -20.1287, "lng": -40.3075 },
+        { "name": "Cariacica", "lat": -20.2619, "lng": -40.4177 },
+        { "name": "Guarapari", "lat": -20.6686, "lng": -40.4988 },
+        { "name": "Viana", "lat": -20.3909, "lng": -40.5619 },
+        { "name": "Anchieta", "lat": -20.8056, "lng": -40.6414 },
+        { "name": "Fundão", "lat": -19.9361, "lng": -40.4067 },
+        { "name": "Alfredo Chaves", "lat": -20.6369, "lng": -40.7536 },
+        { "name": "Piúma", "lat": -20.8458, "lng": -40.7278 }
+      ]
+    },
+    {
+      "name": "Região Imediata de São Mateus",
+      "municipalities": [
+        { "name": "São Mateus", "lat": -18.7157, "lng": -39.8578 },
+        { "name": "Conceição da Barra", "lat": -18.4974, "lng": -39.7394 },
+        { "name": "Jaguaré", "lat": -18.9642, "lng": -40.1617 },
+        { "name": "Boa Esperança", "lat": -18.5528, "lng": -40.5972 },
+        { "name": "Montanha", "lat": -18.1319, "lng": -40.5378 },
+        { "name": "Mucurici", "lat": -18.1461, "lng": -40.2286 },
+        { "name": "Pedro Canário", "lat": -18.0378, "lng": -40.6581 },
+        { "name": "Pinheiros", "lat": -18.4173, "lng": -40.2155 },
+        { "name": "Ponto Belo", "lat": -18.4269, "lng": -40.4761 }
+      ]
+    },
+    {
+      "name": "Região Imediata de Colatina",
+      "municipalities": [
+        { "name": "Colatina", "lat": -19.5396, "lng": -40.6306 },
+        { "name": "Baixo Guandu", "lat": -19.0611, "lng": -41.0139 },
+        { "name": "São Gabriel da Palha", "lat": -18.7178, "lng": -40.5375 },
+        { "name": "Marilândia", "lat": -19.4092, "lng": -40.4814 },
+        { "name": "Governador Lindenberg", "lat": -19.1867, "lng": -40.7394 },
+        { "name": "Águia Branca", "lat": -18.9822, "lng": -40.9444 },
+        { "name": "Alto Rio Novo", "lat": -19.0592, "lng": -40.8189 },
+        { "name": "Mantenópolis", "lat": -18.8622, "lng": -41.1303 },
+        { "name": "Pancas", "lat": -18.4386, "lng": -40.9611 },
+        { "name": "São Domingos do Norte", "lat": -19.1778, "lng": -40.5956 },
+        { "name": "São Roque do Canaã", "lat": -19.3033, "lng": -40.6406 },
+        { "name": "Vila Valério", "lat": -18.9464, "lng": -40.7908 },
+        { "name": "Itaguaçu", "lat": -19.5508, "lng": -40.8572 }
+      ]
+    }
+  ],
+  "searchQueries": [
+    {
+      "query": "centro cultural",
+      "type": "associacao_cultural",
+      "category": "Centro Cultural"
+    },
+    {
+      "query": "associação cultural",
+      "type": "associacao_cultural",
+      "category": "Associação Cultural"
+    },
+    {
+      "query": "espaço cultural",
+      "type": "associacao_cultural",
+      "category": "Espaço Cultural"
+    },
+    {
+      "query": "centro comunitário",
+      "type": "associacao_cultural",
+      "category": "Centro Comunitário"
+    },
+    {
+      "query": "casa de cultura",
+      "type": "associacao_cultural",
+      "category": "Casa de Cultura"
+    },
+    {
+      "query": "instituto cultural",
+      "type": "associacao_cultural",
+      "category": "Instituto Cultural"
+    },
+    {
+      "query": "fundação cultural",
+      "type": "associacao_cultural",
+      "category": "Fundação Cultural"
+    },
+    {
+      "query": "galeria de arte",
+      "type": "associacao_cultural",
+      "category": "Artes Visuais"
+    },
+    {
+      "query": "museu",
+      "type": "associacao_cultural",
+      "category": "Museu"
+    },
+    {
+      "query": "teatro municipal",
+      "type": "associacao_cultural",
+      "category": "Teatro"
+    },
+    {
+      "query": "rádio comunitária",
+      "type": "radio_comunitaria",
+      "category": "Comunicação"
+    },
+    {
+      "query": "rádio FM comunitária",
+      "type": "radio_comunitaria",
+      "category": "Educação"
+    },
+    {
+      "query": "ponto de cultura",
+      "type": "ponto_cultura",
+      "category": "Cultura Popular"
+    },
+    {
+      "query": "ponto de memória",
+      "type": "ponto_cultura",
+      "category": "Patrimônio Cultural"
+    },
+    {
+      "query": "cineclube",
+      "type": "cineclube",
+      "category": "Cinema"
+    },
+    {
+      "query": "coletivo artístico",
+      "type": "artista_coletivo",
+      "category": "Artes Visuais"
+    },
+    {
+      "query": "coletivo cultural",
+      "type": "artista_coletivo",
+      "category": "Cultura"
+    },
+    {
+      "query": "banda municipal",
+      "type": "artista_coletivo",
+      "category": "Música"
+    },
+    {
+      "query": "orquestra",
+      "type": "artista_coletivo",
+      "category": "Música"
+    },
+    {
+      "query": "escola de música",
+      "type": "associacao_cultural",
+      "category": "Música"
+    },
+    {
+      "query": "escola de arte",
+      "type": "associacao_cultural",
+      "category": "Artes Visuais"
+    },
+    {
+      "query": "capoeira",
+      "type": "associacao_cultural",
+      "category": "Capoeira"
+    },
+    {
+      "query": "quilombo",
+      "type": "associacao_cultural",
+      "category": "Patrimônio Cultural"
+    },
+    {
+      "query": "patrimônio histórico",
+      "type": "associacao_cultural",
+      "category": "Patrimônio Cultural"
+    },
+    {
+      "query": "centro de referência cultural",
+      "type": "associacao_cultural",
+      "category": "Centro Cultural"
+    }
+  ],
+  "excludedKeywords": [
+    "restaurante", "restaurant", "lanchonete", "pizzaria", "bar", "pub",
+    "hotel", "hostel", "pousada", "mercado", "supermercado", "farmacia",
+    "loja", "shop", "store", "boutique", "jewelry", "joalheria", "banco",
+    "acougue", "padaria", "supermercado", "atacado"
+  ],
+  "culturalKeywords": [
+    "associação", "cultural", "cultura", "centro", "comunitário", "espaço",
+    "rádio", "radio", "comunitaria", "cineclube", "coletivo", "arte",
+    "teatro", "música", "dança", "capoeira", "patrimônio", "memória",
+    "galeria", "museu", "orquestra", "banda", "escola", "fundação",
+    "instituto", "núcleo", "casa de", "ponto de"
+  ]
+}

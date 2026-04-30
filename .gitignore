@@ -1,0 +1,27 @@
+# Logs
+*.log
+npm-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor
+.vscode/*
+.idea
+.DS_Store
+
+# Database
+*.db
+*.db-journal
+
+# Env files
+.env
+.env.*
+
+# Build artifacts
+dist-server/
+
+# OS
+Thumbs.db
