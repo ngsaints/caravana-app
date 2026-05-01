@@ -161,6 +161,24 @@ app.get('/api/entities/:id', async (req, res) => {
 app.post('/api/entities', async (req, res) => {
   try {
     const data = req.body;
+    
+    // Verificar se já existe uma entidade com o mesmo nome, município e tipo
+    const existing = await prisma.entity.findFirst({
+      where: {
+        name: data.name,
+        municipality: data.municipality,
+        type: data.type
+      }
+    });
+    
+    if (existing) {
+      return res.status(409).json({ 
+        error: 'Entidade duplicada', 
+        message: `Já existe uma entidade com o nome "${data.name}" em ${data.municipality} do tipo ${data.type}`,
+        existingId: existing.id
+      });
+    }
+    
     const entity = await prisma.entity.create({
       data: {
         name: data.name,
