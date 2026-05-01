@@ -1,3 +1,4 @@
+import { useState, useMemo, useEffect } from 'react';
 import type { Entity } from '../hooks/useApi';
 
 interface AssociationsTableProps {
@@ -6,7 +7,11 @@ interface AssociationsTableProps {
   loading?: boolean;
 }
 
+const ITEMS_PER_PAGE = 10;
+
 export function AssociationsTable({ associations, onViewOnMap, loading }: AssociationsTableProps) {
+  const [currentPage, setCurrentPage] = useState(1);
+
   const typeLabels: Record<string, string> = {
     radio_comunitaria: 'Rádio',
     associacao_cultural: 'Associação',
@@ -14,6 +19,18 @@ export function AssociationsTable({ associations, onViewOnMap, loading }: Associ
     cineclube: 'Cineclube',
     artista_coletivo: 'Artista/Coletivo'
   };
+
+  const totalPages = Math.ceil(associations.length / ITEMS_PER_PAGE);
+
+  const paginatedAssociations = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return associations.slice(start, start + ITEMS_PER_PAGE);
+  }, [associations, currentPage]);
+
+  // Reset página quando associações mudarem
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [associations]);
 
   if (loading) {
     return (
@@ -44,7 +61,7 @@ export function AssociationsTable({ associations, onViewOnMap, loading }: Associ
                 <td colSpan={5} className="table-empty">Nenhuma entidade encontrada</td>
               </tr>
             ) : (
-              associations.map((entity) => (
+              paginatedAssociations.map((entity) => (
                 <tr key={entity.id}>
                   <td>
                     <div className="entity-name-cell">
@@ -79,6 +96,46 @@ export function AssociationsTable({ associations, onViewOnMap, loading }: Associ
             )}
           </tbody>
         </table>
+      </div>
+
+      {totalPages > 1 && (
+        <div className="pagination">
+          <button
+            className="page-btn"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage(1)}
+          >
+            ««
+          </button>
+          <button
+            className="page-btn"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage(p => p - 1)}
+          >
+            «
+          </button>
+          <span className="page-info">
+            Página {currentPage} de {totalPages}
+          </span>
+          <button
+            className="page-btn"
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage(p => p + 1)}
+          >
+            »
+          </button>
+          <button
+            className="page-btn"
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage(totalPages)}
+          >
+            »»
+          </button>
+        </div>
+      )}
+
+      <div className="table-footer">
+        Mostrando {paginatedAssociations.length} de {associations.length} entidades
       </div>
     </section>
   );

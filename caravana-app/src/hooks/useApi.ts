@@ -45,7 +45,7 @@ export interface Stats {
   byStatus?: { status: string; _count: number }[];
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://94.141.97.178:3002/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 export function useEntities(filters: Filters) {
   const [entities, setEntities] = useState<Entity[]>([]);

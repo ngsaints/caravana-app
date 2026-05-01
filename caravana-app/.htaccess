@@ -1,0 +1,11 @@
+RewriteEngine On
+RewriteBase /
+
+# Redirecionar API para o servidor Node.js
+RewriteCond %{REQUEST_URI} ^/api/
+RewriteRule ^(.*)$ http://localhost:3002/$1 [P,L]
+
+# Servir arquivos estáticos do dist
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ /dist/index.html [L]

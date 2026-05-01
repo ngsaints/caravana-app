@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useEntities, useStats, ENTITY_TYPES, CATEGORIES, useMunicipalities, useCreateEntity, useScraperStatus, useExportEntities, useScraperConfigure, useScraperRunApify, useScraperRunGemini, useScraperEnrich, type Entity } from '../hooks/useApi';
+import { useEntities, useStats, ENTITY_TYPES, CATEGORIES, useMunicipalities, useCreateEntity, useExportEntities, useScraperConfigure, useScraperRunApify, useScraperRunGemini, useScraperEnrich, type Entity } from '../hooks/useApi';
 
 interface AdminPanelProps {
   onBack: () => void;
@@ -16,6 +16,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [showEmbedCode, setShowEmbedCode] = useState(false);
 
   const { entities, loading, error, refetch } = useEntities({
     search: '',
@@ -551,6 +552,9 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
             <button className="btn-secondary" onClick={() => setShowImportModal(true)}>
               <span>📤</span> Importar CSV
             </button>
+            <button className="btn-secondary btn-embed" onClick={() => setShowEmbedCode(true)}>
+              <span>🔗</span> Código Embed
+            </button>
           </div>
 
           <div className="button-group">
@@ -927,6 +931,74 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                 />
                 <div className="modal-actions">
                   <button className="btn-secondary" onClick={() => setShowImportModal(false)}>Cancelar</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showEmbedCode && (
+            <div className="scraper-config-modal">
+              <div className="modal-content embed-modal">
+                <h3>🔗 Código Embed do Mapa</h3>
+                <p style={{fontSize: '0.9rem', color: 'var(--text-medium)', marginBottom: '1rem'}}>
+                  Copie o código abaixo e cole no HTML do seu site para incorporar o mapa e a lista de entidades.
+                </p>
+                
+                <div className="embed-code-section">
+                  <label style={{fontWeight: 'bold', display: 'block', marginBottom: '0.5rem'}}>
+                    Código HTML:
+                  </label>
+                  <div className="embed-code-box">
+                    <code>{`<iframe 
+  src="${window.location.origin}${window.location.pathname}#/embed" 
+  width="100%" 
+  height="800" 
+  frameborder="0" 
+  style="border: 1px solid #E0D8CC; border-radius: 12px;"
+  title="Mapa das Entidades Culturais do ES">
+</iframe>`}</code>
+                  </div>
+                  <button 
+                    className="btn-copy"
+                    onClick={() => {
+                      const embedCode = `<iframe src="${window.location.origin}${window.location.pathname}#/embed" width="100%" height="800" frameborder="0" style="border: 1px solid #E0D8CC; border-radius: 12px;" title="Mapa das Entidades Culturais do ES"></iframe>`;
+                      navigator.clipboard.writeText(embedCode);
+                      alert('Código copiado para a área de transferência!');
+                    }}
+                  >
+                    📋 Copiar Código
+                  </button>
+                </div>
+
+                <div className="embed-preview-section">
+                  <label style={{fontWeight: 'bold', display: 'block', marginBottom: '0.5rem'}}>
+                    Preview:
+                  </label>
+                  <div className="embed-preview">
+                    <iframe 
+                      src={`${window.location.origin}${window.location.pathname}#/embed`}
+                      width="100%" 
+                      height="400" 
+                      frameBorder="0" 
+                      style={{border: '1px solid #E0D8CC', borderRadius: '8px'}}
+                      title="Preview do Embed"
+                    />
+                  </div>
+                </div>
+
+                <div className="embed-instructions">
+                  <h4>📝 Instruções de Uso:</h4>
+                  <ul>
+                    <li>Cole o código HTML no local desejado do seu site</li>
+                    <li>Ajuste o atributo <code>height</code> conforme necessário (recomendado: 800px)</li>
+                    <li>O embed é totalmente responsivo e se adapta ao tamanho da tela</li>
+                    <li>Inclui mapa interativo, filtros de busca e lista de entidades</li>
+                    <li>Atualiza automaticamente quando novas entidades são aprovadas</li>
+                  </ul>
+                </div>
+
+                <div className="modal-actions" style={{marginTop: '1.5rem'}}>
+                  <button className="btn-secondary" onClick={() => setShowEmbedCode(false)}>Fechar</button>
                 </div>
               </div>
             </div>

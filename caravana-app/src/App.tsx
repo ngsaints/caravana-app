@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polygon, useMap } from 'react-leaflet';
+import { useState, useEffect, useMemo } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import { Header } from './components/Header';
@@ -9,20 +9,12 @@ import { Footer } from './components/Footer';
 import { EntityForm } from './components/EntityForm';
 import { AdminPanel } from './components/AdminPanel';
 import { LoginPage } from './components/LoginPage';
+import { EmbedView } from './components/EmbedView';
 import { useEntities, useStats, type Filters } from './hooks/useApi';
 import 'leaflet/dist/leaflet.css';
 import './styles/App.css';
 
 const ADMIN_PASSWORD = 'caravana2024';
-
-const esBoundary: [number, number][] = [
-  [-18.2, -41.2], [-18.5, -40.8], [-18.8, -40.5], [-19.1, -40.2],
-  [-19.4, -39.9], [-19.7, -39.7], [-20.0, -39.6], [-20.3, -39.7],
-  [-20.6, -39.9], [-20.9, -40.1], [-21.1, -40.5], [-21.3, -40.8],
-  [-21.4, -41.1], [-21.2, -41.4], [-20.9, -41.6], [-20.5, -41.7],
-  [-20.1, -41.5], [-19.7, -41.3], [-19.3, -41.1], [-18.9, -41.0],
-  [-18.5, -41.1]
-];
 
 const TYPE_CONFIG: Record<string, { color: string; label: string }> = {
   radio_comunitaria: { color: '#E74C3C', label: 'Rádio Comunitária' },
@@ -95,6 +87,13 @@ function MapBoundsHandler({ positions, shouldFit, selectedEntityId, entities }: 
 }
 
 function App() {
+  // Verificar se é rota embed
+  const isEmbedRoute = window.location.hash === '#/embed' || window.location.pathname === '/embed';
+  
+  if (isEmbedRoute) {
+    return <EmbedView />;
+  }
+
   const [currentPage, setCurrentPage] = useState<'home' | 'admin' | 'login'>('home');
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     // Usar localStorage para manter sessão permanente
