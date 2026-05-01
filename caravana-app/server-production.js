@@ -31,6 +31,51 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
+// Middleware de autenticação
+function requireAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Não autorizado' });
+  }
+  
+  const token = authHeader.substring(7);
+  
+  // Verificar se o token é válido (senha hash)
+  const validToken = Buffer.from('caravana2024').toString('base64');
+  
+  if (token !== validToken) {
+    return res.status(401).json({ error: 'Token inválido' });
+  }
+  
+  next();
+}
+
+// Rota de login
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { password } = req.body;
+    
+    // Buscar senha do banco de dados
+    const passwordConfig = await prisma.config.findUnique({ 
+      where: { key: 'ADMIN_PASSWORD' } 
+    });
+    
+    const adminPassword = passwordConfig?.value || 'caravana2024';
+    
+    if (password === adminPassword) {
+      // Gerar token
+      const token = Buffer.from(password).toString('base64');
+      res.json({ success: true, token });
+    } else {
+      res.status(401).json({ error: 'Senha incorreta' });
+    }
+  } catch (error) {
+    console.error('Error during login:', error);
+    res.status(500).json({ error: 'Erro ao fazer login' });
+  }
+});
+
 // API Routes
 app.get('/api/entities', async (req, res) => {
   try {
@@ -54,6 +99,122 @@ app.get('/api/entities', async (req, res) => {
   } catch (error) {
     console.error('Error fetching entities:', error);
     res.status(500).json({ error: 'Failed to fetch entities' });
+  }
+});
+
+// Criar nova entidade (protegido)
+app.post('/api/entities', requireAuth, async (req, res) => {
+  try {
+    const data = req.body;
+    
+    // Verificar se já existe uma entidade com o mesmo nome, município e tipo
+    const existing = await prisma.entity.findFirst({
+      where: {
+        name: data.name,
+        municipality: data.municipality,
+        type: data.type
+      }
+    });
+    
+    if (existing) {
+      return res.status(409).json({ 
+        error: 'Entidade duplicada', 
+        message: `Já existe uma entidade com o nome "${data.name}" em ${data.municipality} do tipo ${data.type}`,
+        existingId: existing.id
+      });
+    }
+    
+    const entity = await prisma.entity.create({
+      data: {
+        name: data.name,
+        type: data.type,
+        category: data.category,
+        municipality: data.municipality,
+        region: data.region,
+        lat: data.lat,
+        lng: data.lng,
+        address: data.address,
+        phone: data.phone,
+        email: data.email,
+        website: data.website,
+        socialMedia: data.socialMedia,
+        description: data.description,
+        services: data.services,
+        foundedYear: data.foundedYear,
+        status: data.status || 'pending'
+      }
+    });
+    res.status(201).json(entity);
+  } catch (error) {
+    console.error('Error creating entity:', error);
+    res.status(500).json({ error: 'Failed to create entity' });
+  }
+});
+
+// Deletar entidade (protegido)
+app.delete('/api/entities/:id', requireAuth, async (req, res) => {
+  try {
+    await prisma.entity.delete({
+      where: { id: req.params.id }
+    });
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting entity:', error);
+    res.status(500).json({ error: 'Failed to delete entity' });
+  }
+});
+
+// Atualizar status da entidade (protegido)
+app.patch('/api/entities/:id', requireAuth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const entity = await prisma.entity.update({
+      where: { id: req.params.id },
+      data: { status }
+    });
+    res.json(entity);
+  } catch (error) {
+    console.error('Error updating entity:', error);
+    res.status(500).json({ error: 'Failed to update entity' });
+  }
+});
+
+// Exportar CSV
+app.get('/api/entities/export', async (req, res) => {
+  try {
+    const entities = await prisma.entity.findMany({ where: { status: 'active' } });
+
+    const csvRows = [
+      'Nome,Tipo,Categoria,Município,Região,Endereço,Latitude,Longitude,Telefone,Website,Email,Descrição,Serviços,Ano de Fundação,Status'
+    ];
+
+    for (const e of entities) {
+      const row = [
+        `"${(e.name || '').replace(/"/g, '""')}"`,
+        e.type || '',
+        e.category || '',
+        e.municipality || '',
+        e.region || '',
+        `"${(e.address || '').replace(/"/g, '""')}"`,
+        e.lat || '',
+        e.lng || '',
+        e.phone || '',
+        e.website || '',
+        e.email || '',
+        `"${(e.description || '').replace(/"/g, '""')}"`,
+        `"${(e.services || '').replace(/"/g, '""')}"`,
+        e.foundedYear || '',
+        e.status || ''
+      ];
+      csvRows.push(row.join(','));
+    }
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=caravana_cultural_entities.csv');
+    res.send(csvRows.join('\n'));
+  } catch (error) {
+    console.error('Error exporting entities:', error);
+    res.status(500).json({ error: 'Failed to export entities' });
   }
 });
 
@@ -144,6 +305,45 @@ app.get('/api/scraper/config', async (req, res) => {
   } catch (error) {
     console.error('Error fetching scraper config:', error);
     res.json({ apifyToken: '', geminiTokens: [] });
+  }
+});
+
+// Configurar tokens do scraper (protegido)
+app.post('/api/scraper/configure', requireAuth, async (req, res) => {
+  try {
+    const { apifyToken, geminiToken, geminiTokens } = req.body;
+    
+    // Salvar token Apify
+    if (apifyToken && apifyToken.trim()) {
+      await prisma.config.upsert({
+        where: { key: 'APIFY_TOKEN' },
+        update: { value: apifyToken.trim() },
+        create: { key: 'APIFY_TOKEN', value: apifyToken.trim() }
+      });
+    }
+    
+    // Salvar tokens Gemini
+    let tokensToSave = [];
+    if (geminiToken && geminiToken.trim()) {
+      tokensToSave = [geminiToken.trim()];
+    }
+    if (geminiTokens && Array.isArray(geminiTokens) && geminiTokens.length > 0) {
+      tokensToSave = geminiTokens.filter(t => t && t.trim());
+    }
+    
+    if (tokensToSave.length > 0) {
+      await prisma.config.upsert({
+        where: { key: 'GEMINI_TOKENS' },
+        update: { value: JSON.stringify(tokensToSave) },
+        create: { key: 'GEMINI_TOKENS', value: JSON.stringify(tokensToSave) }
+      });
+    }
+    
+    console.log(`[CONFIG] Salvos: Apify=${!!apifyToken}, Gemini=${tokensToSave.length} tokens`);
+    res.json({ success: true, geminiTokenCount: tokensToSave.length });
+  } catch (error) {
+    console.error('Error saving config:', error);
+    res.status(500).json({ error: 'Failed to save configuration' });
   }
 });
 
