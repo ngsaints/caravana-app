@@ -7,7 +7,7 @@ interface AdminPanelProps {
 
 const ITEMS_PER_PAGE = 10;
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://94.141.97.178:3002/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 export function AdminPanel({ onBack }: AdminPanelProps) {
   const [selectedEntities, setSelectedEntities] = useState<Set<string>>(new Set());
@@ -164,7 +164,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
     try {
       await Promise.all(
         Array.from(selectedEntities).map(id =>
-          fetch(`${API_BASE.replace('/api', '')}/api/entities/${id}`, { method: 'DELETE' })
+          fetch(`${API_BASE}/entities/${id}`, { method: 'DELETE' })
         )
       );
       setSelectedEntities(new Set());
@@ -265,7 +265,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
 
   const handleDelete = async (id: string) => {
     try {
-      await fetch(`${API_BASE.replace('/api', '')}/api/entities/${id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/entities/${id}`, { method: 'DELETE' });
       setDeleteConfirm(null);
       refetch();
     } catch (err) {
@@ -275,7 +275,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
 
   const handleApprove = async (id: string) => {
     try {
-      await fetch(`${API_BASE.replace('/api', '')}/api/entities/${id}`, {
+      await fetch(`${API_BASE}/entities/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'active' })
@@ -288,7 +288,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
 
   const handleReject = async (id: string) => {
     try {
-      await fetch(`${API_BASE.replace('/api', '')}/api/entities/${id}`, {
+      await fetch(`${API_BASE}/entities/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'inactive' })
@@ -306,7 +306,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
     try {
       await Promise.all(
         Array.from(selectedEntities).map(id =>
-          fetch(`${API_BASE.replace('/api', '')}/api/entities/${id}`, {
+          fetch(`${API_BASE}/entities/${id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: 'active' })
@@ -327,7 +327,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
     try {
       await Promise.all(
         Array.from(selectedEntities).map(id =>
-          fetch(`${API_BASE.replace('/api', '')}/api/entities/${id}`, {
+          fetch(`${API_BASE}/entities/${id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: 'inactive' })
@@ -912,7 +912,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
                       });
                       if (entities.length > 0) {
                         try {
-                          const res = await fetch(`${API_BASE.replace('/api', '')}/api/entities/import`, {
+                          const res = await fetch(`${API_BASE}/entities/import`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ entities })
