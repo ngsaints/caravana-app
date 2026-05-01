@@ -91,6 +91,62 @@ app.get('/api/municipalities', async (req, res) => {
   }
 });
 
+// Rotas do Scraper
+app.get('/api/scraper/status', async (req, res) => {
+  try {
+    const apifyConfig = await prisma.config.findUnique({ where: { key: 'APIFY_TOKEN' } });
+    const geminiConfig = await prisma.config.findUnique({ where: { key: 'GEMINI_TOKENS' } });
+    
+    const hasApify = !!(apifyConfig?.value && apifyConfig.value !== 'YOUR_API_TOKEN_HERE');
+    const hasGemini = !!(geminiConfig?.value);
+    
+    let geminiTokenCount = 0;
+    if (geminiConfig?.value) {
+      try {
+        const tokens = JSON.parse(geminiConfig.value);
+        geminiTokenCount = Array.isArray(tokens) ? tokens.length : 0;
+      } catch {
+        geminiTokenCount = 0;
+      }
+    }
+    
+    res.json({
+      configured: hasApify || hasGemini,
+      hasApify,
+      hasGemini,
+      geminiTokenCount,
+      lastUpdated: geminiConfig?.updatedAt || apifyConfig?.updatedAt || null
+    });
+  } catch (error) {
+    console.error('Error fetching scraper status:', error);
+    res.json({ configured: false, hasApify: false, hasGemini: false, lastUpdated: null });
+  }
+});
+
+app.get('/api/scraper/config', async (req, res) => {
+  try {
+    const apifyConfig = await prisma.config.findUnique({ where: { key: 'APIFY_TOKEN' } });
+    const geminiConfig = await prisma.config.findUnique({ where: { key: 'GEMINI_TOKENS' } });
+    
+    let geminiTokens = [];
+    if (geminiConfig?.value) {
+      try {
+        geminiTokens = JSON.parse(geminiConfig.value);
+      } catch {
+        geminiTokens = [];
+      }
+    }
+    
+    res.json({
+      apifyToken: apifyConfig?.value || '',
+      geminiTokens: geminiTokens
+    });
+  } catch (error) {
+    console.error('Error fetching scraper config:', error);
+    res.json({ apifyToken: '', geminiTokens: [] });
+  }
+});
+
 // Servir arquivos estáticos do frontend
 app.use(express.static(path.join(__dirname, 'dist')));
 
