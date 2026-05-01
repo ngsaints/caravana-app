@@ -181,12 +181,14 @@ function App() {
   useEffect(() => {
     if (stats) {
       const timer = setTimeout(() => {
-        animateCounter(setAssocCount, stats.entityCount, 1500);
+        // Contar apenas entidades ativas para o contador público
+        const activeCount = stats.byStatus?.find(s => s.status === 'active')?._count || filteredEntities.length;
+        animateCounter(setAssocCount, activeCount, 1500);
         animateCounter(setMunicipCount, stats.municipalityCount, 1500);
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [stats]);
+  }, [stats, filteredEntities.length]);
 
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
 
