@@ -75,7 +75,94 @@ async function getTokensFromDB() {
   };
 }
 
-app.use(cors());
+// Middleware de autenticação
+function requireAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Não autorizado' });
+  }
+  
+  const token = authHeader.substring(7);
+  
+  // Verificar se o token é válido (senha hash)
+  // Em produção, use JWT ou sessões
+  const validToken = Buffer.from('caravana2024').toString('base64');
+  
+  if (token !== validToken) {
+    return res.status(401).json({ error: 'Token inválido' });
+  }
+  
+  next();
+}
+
+// Rota de login
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { password } = req.body;
+    
+    // Buscar senha do banco de dados
+    const passwordConfig = await prisma.config.findUnique({ 
+      where: { key: 'ADMIN_PASSWORD' } 
+    });
+    
+    const adminPassword = passwordConfig?.value || 'caravana2024';
+    
+    if (password === adminPassword) {
+      // Gerar token (em produção, use JWT)
+      const token = Buffer.from(password).toString('base64');
+      res.json({ success: true, token });
+    } else {
+      res.status(401).json({ error: 'Senha incorreta' });
+    }
+  } catch (error) {
+    console.error('Error during login:', error);
+    res.status(500).json({ error: 'Erro ao fazer login' });
+  }
+});
+
+// Rota para alterar senha
+app.post('/api/auth/change-password', requireAuth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    const passwordConfig = await prisma.config.findUnique({ 
+      where: { key: 'ADMIN_PASSWORD' } 
+    });
+    
+    const adminPassword = passwordConfig?.value || 'caravana2024';
+    
+    if (currentPassword !== adminPassword) {
+      return res.status(401).json({ error: 'Senha atual incorreta' });
+    }
+    
+    await prisma.config.upsert({
+      where: { key: 'ADMIN_PASSWORD' },
+      update: { value: newPassword },
+      create: { key: 'ADMIN_PASSWORD', value: newPassword }
+    });
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    res.status(500).json({ error: 'Erro ao alterar senha' });
+  }
+});
+
+app.use(cors({
+  origin: '*', // Permite todos os domínios (necessário para embed)
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: false // Não precisa de cookies para embed público
+}));
+
+// Headers adicionais para permitir iframe em outros sites
+app.use((req, res, next) => {
+  res.setHeader('X-Frame-Options', 'ALLOWALL'); // Permite iframe em qualquer site
+  res.setHeader('Content-Security-Policy', "frame-ancestors *"); // CSP para iframes
+  next();
+});
+
 app.use(express.json());
 
 app.get('/api/health', (req, res) => {
@@ -158,7 +245,7 @@ app.get('/api/entities/:id', async (req, res) => {
   }
 });
 
-app.post('/api/entities', async (req, res) => {
+app.post('/api/entities', requireAuth, async (req, res) => {
   try {
     const data = req.body;
     
@@ -206,7 +293,7 @@ app.post('/api/entities', async (req, res) => {
   }
 });
 
-app.delete('/api/entities/:id', async (req, res) => {
+app.delete('/api/entities/:id', requireAuth, async (req, res) => {
   try {
     await prisma.entity.delete({
       where: { id: req.params.id }
@@ -218,7 +305,7 @@ app.delete('/api/entities/:id', async (req, res) => {
   }
 });
 
-app.patch('/api/entities/:id', async (req, res) => {
+app.patch('/api/entities/:id', requireAuth, async (req, res) => {
   try {
     const { status } = req.body;
     const entity = await prisma.entity.update({
@@ -329,7 +416,7 @@ app.get('/api/scraper/config', async (req, res) => {
     res.json({ apifyToken: '', geminiTokens: [] });
   }
 });
-app.post('/api/scraper/configure', async (req, res) => {
+app.post('/api/scraper/configure', requireAuth, async (req, res) => {
   try {
     const { apifyToken, geminiToken, geminiTokens } = req.body;
     
@@ -367,7 +454,7 @@ app.post('/api/scraper/configure', async (req, res) => {
   }
 });
 
-app.post('/api/scraper/run-apify', async (req, res) => {
+app.post('/api/scraper/run-apify', requireAuth, async (req, res) => {
   try {
     const config = await getTokensFromDB();
     
@@ -712,7 +799,7 @@ Se não encontrar alguma informação, use null. Seja preciso e objetivo.`;
   }
 });
 
-app.post('/api/scraper/run-gemini', async (req, res) => {
+app.post('/api/scraper/run-gemini', requireAuth, async (req, res) => {
   try {
     const { maxMunicipalities = 5 } = req.body;
 

@@ -15,7 +15,20 @@ console.log('🚀 Iniciando servidor...');
 console.log('📁 Diretório:', __dirname);
 console.log('🔌 Porta:', PORT);
 
-app.use(cors());
+app.use(cors({
+  origin: '*', // Permite todos os domínios (necessário para embed)
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: false
+}));
+
+// Headers para permitir iframe em outros sites
+app.use((req, res, next) => {
+  res.setHeader('X-Frame-Options', 'ALLOWALL');
+  res.setHeader('Content-Security-Policy', "frame-ancestors *");
+  next();
+});
+
 app.use(express.json());
 
 // API Routes

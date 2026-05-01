@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teste de Embed - Caravana da Cultura ES</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 2rem;
+      min-height: 100vh;
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    
+    h1 {
+      color: #5A3D8A;
+      margin-bottom: 0.5rem;
+      font-size: 2rem;
+    }
+    
+    p {
+      color: #666;
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+    
+    .embed-container {
+      border: 2px solid #E0D8CC;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #f9f9f9;
+    }
+    
+    iframe {
+      display: block;
+      width: 100%;
+      height: 800px;
+      border: none;
+    }
+    
+    .info {
+      margin-top: 2rem;
+      padding: 1rem;
+      background: #f0f0f0;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      color: #555;
+    }
+    
+    .info strong {
+      color: #5A3D8A;
+    }
+    
+    @media (max-width: 768px) {
+      body {
+        padding: 1rem;
+      }
+      
+      .container {
+        padding: 1rem;
+      }
+      
+      h1 {
+        font-size: 1.5rem;
+      }
+      
+      iframe {
+        height: 600px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🗺️ Mapa das Entidades Culturais do Espírito Santo</h1>
+    <p>
+      Este é um exemplo de como o mapa pode ser incorporado em qualquer site usando um iframe.
+      O embed funciona em WordPress, Wix, Squarespace, ou qualquer plataforma que permita HTML personalizado.
+    </p>
+    
+    <div class="embed-container">
+      <!-- CÓDIGO DO EMBED - Substitua a URL pela URL da Hostinger -->
+      <iframe 
+        src="https://hotpink-viper-184207.hostingersite.com/#/embed" 
+        width="100%" 
+        height="800" 
+        frameborder="0"
+        title="Mapa das Entidades Culturais do ES"
+        loading="lazy">
+      </iframe>
+    </div>
+    
+    <div class="info">
+      <strong>📋 Como usar:</strong><br>
+      1. Copie o código do iframe acima<br>
+      2. Cole no HTML do seu site (WordPress, Wix, etc.)<br>
+      3. Ajuste a altura (height) conforme necessário<br>
+      4. Pronto! O mapa estará funcionando no seu site
+    </div>
+  </div>
+</body>
+</html>
