@@ -17,6 +17,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showEmbedCode, setShowEmbedCode] = useState(false);
+  const [showEmbedFormCode, setShowEmbedFormCode] = useState(false);
 
   const { entities, loading, error, refetch } = useEntities({
     search: '',
@@ -553,7 +554,10 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
               <span>📤</span> Importar CSV
             </button>
             <button className="btn-secondary btn-embed" onClick={() => setShowEmbedCode(true)}>
-              <span>🔗</span> Código Embed
+              <span>🔗</span> Código Embed Mapa
+            </button>
+            <button className="btn-secondary btn-embed" onClick={() => setShowEmbedFormCode(true)}>
+              <span>📝</span> Código Embed Formulário
             </button>
           </div>
 
@@ -999,6 +1003,75 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
 
                 <div className="modal-actions" style={{marginTop: '1.5rem'}}>
                   <button className="btn-secondary" onClick={() => setShowEmbedCode(false)}>Fechar</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showEmbedFormCode && (
+            <div className="scraper-config-modal">
+              <div className="modal-content embed-modal">
+                <h3>📝 Código Embed do Formulário</h3>
+                <p style={{fontSize: '0.9rem', color: 'var(--text-medium)', marginBottom: '1rem'}}>
+                  Copie o código abaixo e cole no HTML do seu site para incorporar o formulário de cadastro de entidades.
+                </p>
+                
+                <div className="embed-code-section">
+                  <label style={{fontWeight: 'bold', display: 'block', marginBottom: '0.5rem'}}>
+                    Código HTML:
+                  </label>
+                  <div className="embed-code-box">
+                    <code>{`<iframe 
+  src="${window.location.origin}${window.location.pathname}#/embed-form" 
+  width="100%" 
+  height="1200" 
+  frameborder="0" 
+  style="border: 1px solid #E0D8CC; border-radius: 12px;"
+  title="Cadastro de Entidades Culturais do ES">
+</iframe>`}</code>
+                  </div>
+                  <button 
+                    className="btn-copy"
+                    onClick={() => {
+                      const embedCode = `<iframe src="${window.location.origin}${window.location.pathname}#/embed-form" width="100%" height="1200" frameborder="0" style="border: 1px solid #E0D8CC; border-radius: 12px;" title="Cadastro de Entidades Culturais do ES"></iframe>`;
+                      navigator.clipboard.writeText(embedCode);
+                      alert('Código copiado para a área de transferência!');
+                    }}
+                  >
+                    📋 Copiar Código
+                  </button>
+                </div>
+
+                <div className="embed-preview-section">
+                  <label style={{fontWeight: 'bold', display: 'block', marginBottom: '0.5rem'}}>
+                    Preview:
+                  </label>
+                  <div className="embed-preview">
+                    <iframe 
+                      src={`${window.location.origin}${window.location.pathname}#/embed-form`}
+                      width="100%" 
+                      height="600" 
+                      frameBorder="0" 
+                      style={{border: '1px solid #E0D8CC', borderRadius: '8px'}}
+                      title="Preview do Embed Formulário"
+                    />
+                  </div>
+                </div>
+
+                <div className="embed-instructions">
+                  <h4>📝 Instruções de Uso:</h4>
+                  <ul>
+                    <li>Cole o código HTML no local desejado do seu site</li>
+                    <li>Ajuste o atributo <code>height</code> conforme necessário (recomendado: 1200px)</li>
+                    <li>O formulário é totalmente responsivo e se adapta ao tamanho da tela</li>
+                    <li>Cadastros enviados ficam com status "pendente" até aprovação no admin</li>
+                    <li>Mensagem de sucesso é exibida automaticamente após o envio</li>
+                    <li>Formulário é resetado automaticamente após 3 segundos</li>
+                  </ul>
+                </div>
+
+                <div className="modal-actions" style={{marginTop: '1.5rem'}}>
+                  <button className="btn-secondary" onClick={() => setShowEmbedFormCode(false)}>Fechar</button>
                 </div>
               </div>
             </div>

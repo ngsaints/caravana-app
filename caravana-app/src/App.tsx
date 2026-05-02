@@ -10,6 +10,7 @@ import { EntityForm } from './components/EntityForm';
 import { AdminPanel } from './components/AdminPanel';
 import { LoginPage } from './components/LoginPage';
 import { EmbedView } from './components/EmbedView';
+import { EmbedForm } from './components/EmbedForm';
 import { useEntities, useStats, type Filters } from './hooks/useApi';
 import 'leaflet/dist/leaflet.css';
 import './styles/App.css';
@@ -89,9 +90,14 @@ function MapBoundsHandler({ positions, shouldFit, selectedEntityId, entities }: 
 function App() {
   // Verificar se é rota embed
   const isEmbedRoute = window.location.hash === '#/embed' || window.location.pathname === '/embed';
+  const isEmbedFormRoute = window.location.hash === '#/embed-form' || window.location.pathname === '/embed-form';
   
   if (isEmbedRoute) {
     return <EmbedView />;
+  }
+
+  if (isEmbedFormRoute) {
+    return <EmbedForm />;
   }
 
   const [currentPage, setCurrentPage] = useState<'home' | 'admin' | 'login'>('home');
