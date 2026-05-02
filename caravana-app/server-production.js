@@ -130,7 +130,7 @@ app.get('/api/entities', async (req, res) => {
   }
 });
 
-// Buscar entidade por ID (público)
+// Buscar entidade por ID (público) - DEVE VIR ANTES DAS ROTAS PROTEGIDAS
 app.get('/api/entities/:id', async (req, res) => {
   try {
     const entity = await prisma.entity.findUnique({
@@ -143,6 +143,45 @@ app.get('/api/entities/:id', async (req, res) => {
   } catch (error) {
     console.error('Error fetching entity:', error);
     res.status(500).json({ error: 'Failed to fetch entity' });
+  }
+});
+
+// Exportar CSV (público) - DEVE VIR ANTES DAS ROTAS PROTEGIDAS
+app.get('/api/entities/export', async (req, res) => {
+  try {
+    const entities = await prisma.entity.findMany({ where: { status: 'active' } });
+
+    const csvRows = [
+      'Nome,Tipo,Categoria,Município,Região,Endereço,Latitude,Longitude,Telefone,Website,Email,Descrição,Serviços,Ano de Fundação,Status'
+    ];
+
+    for (const e of entities) {
+      const row = [
+        `"${(e.name || '').replace(/"/g, '""')}"`,
+        e.type || '',
+        e.category || '',
+        e.municipality || '',
+        e.region || '',
+        `"${(e.address || '').replace(/"/g, '""')}"`,
+        e.lat || '',
+        e.lng || '',
+        e.phone || '',
+        e.website || '',
+        e.email || '',
+        `"${(e.description || '').replace(/"/g, '""')}"`,
+        `"${(e.services || '').replace(/"/g, '""')}"`,
+        e.foundedYear || '',
+        e.status || ''
+      ];
+      csvRows.push(row.join(','));
+    }
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=caravana_cultural_entities.csv');
+    res.send(csvRows.join('\n'));
+  } catch (error) {
+    console.error('Error exporting entities:', error);
+    res.status(500).json({ error: 'Failed to export entities' });
   }
 });
 
@@ -220,45 +259,6 @@ app.patch('/api/entities/:id', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Error updating entity:', error);
     res.status(500).json({ error: 'Failed to update entity' });
-  }
-});
-
-// Exportar CSV
-app.get('/api/entities/export', async (req, res) => {
-  try {
-    const entities = await prisma.entity.findMany({ where: { status: 'active' } });
-
-    const csvRows = [
-      'Nome,Tipo,Categoria,Município,Região,Endereço,Latitude,Longitude,Telefone,Website,Email,Descrição,Serviços,Ano de Fundação,Status'
-    ];
-
-    for (const e of entities) {
-      const row = [
-        `"${(e.name || '').replace(/"/g, '""')}"`,
-        e.type || '',
-        e.category || '',
-        e.municipality || '',
-        e.region || '',
-        `"${(e.address || '').replace(/"/g, '""')}"`,
-        e.lat || '',
-        e.lng || '',
-        e.phone || '',
-        e.website || '',
-        e.email || '',
-        `"${(e.description || '').replace(/"/g, '""')}"`,
-        `"${(e.services || '').replace(/"/g, '""')}"`,
-        e.foundedYear || '',
-        e.status || ''
-      ];
-      csvRows.push(row.join(','));
-    }
-
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename=caravana_cultural_entities.csv');
-    res.send(csvRows.join('\n'));
-  } catch (error) {
-    console.error('Error exporting entities:', error);
-    res.status(500).json({ error: 'Failed to export entities' });
   }
 });
 
