@@ -130,23 +130,7 @@ app.get('/api/entities', async (req, res) => {
   }
 });
 
-// Buscar entidade por ID (público) - DEVE VIR ANTES DAS ROTAS PROTEGIDAS
-app.get('/api/entities/:id', async (req, res) => {
-  try {
-    const entity = await prisma.entity.findUnique({
-      where: { id: req.params.id }
-    });
-    if (!entity) {
-      return res.status(404).json({ error: 'Entity not found' });
-    }
-    res.json(entity);
-  } catch (error) {
-    console.error('Error fetching entity:', error);
-    res.status(500).json({ error: 'Failed to fetch entity' });
-  }
-});
-
-// Exportar CSV (público) - DEVE VIR ANTES DAS ROTAS PROTEGIDAS
+// Exportar CSV (público) - DEVE VIR ANTES DE /api/entities/:id
 app.get('/api/entities/export', async (req, res) => {
   try {
     const entities = await prisma.entity.findMany({ where: { status: 'active' } });
@@ -182,6 +166,22 @@ app.get('/api/entities/export', async (req, res) => {
   } catch (error) {
     console.error('Error exporting entities:', error);
     res.status(500).json({ error: 'Failed to export entities' });
+  }
+});
+
+// Buscar entidade por ID (público) - DEVE VIR DEPOIS DE /api/entities/export
+app.get('/api/entities/:id', async (req, res) => {
+  try {
+    const entity = await prisma.entity.findUnique({
+      where: { id: req.params.id }
+    });
+    if (!entity) {
+      return res.status(404).json({ error: 'Entity not found' });
+    }
+    res.json(entity);
+  } catch (error) {
+    console.error('Error fetching entity:', error);
+    res.status(500).json({ error: 'Failed to fetch entity' });
   }
 });
 
