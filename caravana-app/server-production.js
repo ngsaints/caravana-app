@@ -185,8 +185,8 @@ app.get('/api/entities/export', async (req, res) => {
   }
 });
 
-// Criar nova entidade (protegido)
-app.post('/api/entities', requireAuth, async (req, res) => {
+// Criar nova entidade (PÚBLICO - permite cadastro sem login)
+app.post('/api/entities', async (req, res) => {
   try {
     const data = req.body;
     
