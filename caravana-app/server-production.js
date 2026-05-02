@@ -31,6 +31,11 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // Middleware de autenticação
 function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization;
