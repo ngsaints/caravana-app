@@ -1,21 +1,29 @@
 import { useState } from 'react';
 
 interface LoginPageProps {
-  onLogin: (password: string) => boolean;
+  onLogin: (password: string) => Promise<boolean>;
 }
 
 export function LoginPage({ onLogin }: LoginPageProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (onLogin(password)) {
+    setLoading(true);
+    setError('');
+    
+    const success = await onLogin(password);
+    
+    if (success) {
       window.location.hash = '#/admin';
     } else {
       setError('Senha incorreta');
       setPassword('');
     }
+    
+    setLoading(false);
   };
 
   return (
@@ -42,8 +50,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             />
           </div>
 
-          <button type="submit" className="btn-primary login-btn">
-            Entrar
+          <button type="submit" className="btn-primary login-btn" disabled={loading}>
+            {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
 

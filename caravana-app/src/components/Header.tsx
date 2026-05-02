@@ -1,18 +1,14 @@
 import { useState } from 'react';
 
 interface HeaderProps {
-  activeSection: string;
-  onSectionChange: (section: string) => void;
   onCadastrar?: () => void;
   onAdmin?: () => void;
   onLogout?: () => void;
   showLogout?: boolean;
 }
 
-export function Header({ activeSection, onSectionChange, onCadastrar, onAdmin, onLogout, showLogout }: HeaderProps) {
+export function Header({ onCadastrar, onAdmin, onLogout, showLogout }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const navItems = ['INÍCIO', 'O PROJETO', 'MAPA', 'ASSOCIAÇÕES', 'CONTATO'];
 
   return (
     <header className="header">
@@ -30,21 +26,6 @@ export function Header({ activeSection, onSectionChange, onCadastrar, onAdmin, o
         </div>
 
         <nav className={mobileMenuOpen ? 'open' : ''}>
-          {navItems.map((item) => (
-            <a
-              key={item}
-              href="#"
-              className={activeSection === item ? 'active' : ''}
-              onClick={(e) => {
-                e.preventDefault();
-                onSectionChange(item);
-                setMobileMenuOpen(false);
-              }}
-            >
-              {item}
-            </a>
-          ))}
-          
           {/* Botões dentro do menu mobile */}
           <div className="mobile-menu-actions">
             {onCadastrar && (

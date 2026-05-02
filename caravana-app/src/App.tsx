@@ -15,8 +15,6 @@ import { useEntities, useStats, type Filters } from './hooks/useApi';
 import 'leaflet/dist/leaflet.css';
 import './styles/App.css';
 
-const ADMIN_PASSWORD = 'caravana2024';
-
 const TYPE_CONFIG: Record<string, { color: string; label: string }> = {
   radio_comunitaria: { color: '#E74C3C', label: 'Rádio Comunitária' },
   associacao_cultural: { color: '#5A3D8A', label: 'Associação Cultural' },
@@ -105,7 +103,6 @@ function App() {
     // Usar localStorage para manter sessão permanente
     return localStorage.getItem('caravana_auth') === 'true';
   });
-  const [activeSection, setActiveSection] = useState('INÍCIO');
   const [mapView, setMapView] = useState<'map' | 'satellite'>('map');
   const [showForm, setShowForm] = useState(false);
   const [fitBounds, setFitBounds] = useState(false);
@@ -210,7 +207,6 @@ function App() {
 
   const handleViewOnMap = (entityId?: string) => {
     setMapView('map');
-    setActiveSection('MAPA');
     if (entityId) {
       setSelectedEntityId(entityId);
       // Scroll suave para o mapa
@@ -230,22 +226,35 @@ function App() {
 
   const handleShowAllOnMap = () => {
     setFitBounds(true);
-    setActiveSection('MAPA');
   };
 
-  const handleLogin = (password: string) => {
-    if (password === ADMIN_PASSWORD) {
-      setIsAuthenticated(true);
-      localStorage.setItem('caravana_auth', 'true'); // Mudado para localStorage
-      setCurrentPage('admin');
-      return true;
+  const handleLogin = async (password: string) => {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setIsAuthenticated(true);
+        localStorage.setItem('caravana_auth', 'true');
+        localStorage.setItem('caravana_auth_token', data.token);
+        setCurrentPage('admin');
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
     }
-    return false;
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
-    localStorage.removeItem('caravana_auth'); // Mudado para localStorage
+    localStorage.removeItem('caravana_auth');
+    localStorage.removeItem('caravana_auth_token');
     window.location.hash = '';
     setCurrentPage('home');
   };
@@ -267,8 +276,6 @@ function App() {
     return (
       <div className="app">
         <Header
-          activeSection={activeSection}
-          onSectionChange={setActiveSection}
           onCadastrar={() => setShowForm(true)}
           onAdmin={() => {}}
           onLogout={handleLogout}
@@ -286,8 +293,6 @@ function App() {
   return (
     <div className="app">
       <Header
-        activeSection={activeSection}
-        onSectionChange={setActiveSection}
         onCadastrar={() => setShowForm(true)}
         onAdmin={() => {
           window.location.hash = '#/admin';

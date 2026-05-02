@@ -9,6 +9,15 @@ const ITEMS_PER_PAGE = 10;
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
+// Helper para pegar o token de autenticação
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('caravana_auth_token');
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  };
+};
+
 export function AdminPanel({ onBack }: AdminPanelProps) {
   const [selectedEntities, setSelectedEntities] = useState<Set<string>>(new Set());
   const [isEditing, setIsEditing] = useState(false);
@@ -165,7 +174,10 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
     try {
       await Promise.all(
         Array.from(selectedEntities).map(id =>
-          fetch(`${API_BASE}/entities/${id}`, { method: 'DELETE' })
+          fetch(`${API_BASE}/entities/${id}`, { 
+            method: 'DELETE',
+            headers: getAuthHeaders()
+          })
         )
       );
       setSelectedEntities(new Set());
@@ -266,7 +278,10 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
 
   const handleDelete = async (id: string) => {
     try {
-      await fetch(`${API_BASE}/entities/${id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/entities/${id}`, { 
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
       setDeleteConfirm(null);
       refetch();
     } catch (err) {
@@ -276,9 +291,13 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
 
   const handleApprove = async (id: string) => {
     try {
+      const token = localStorage.getItem('caravana_auth_token');
       await fetch(`${API_BASE}/entities/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ status: 'active' })
       });
       refetch();
@@ -289,9 +308,13 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
 
   const handleReject = async (id: string) => {
     try {
+      const token = localStorage.getItem('caravana_auth_token');
       await fetch(`${API_BASE}/entities/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ status: 'inactive' })
       });
       refetch();
@@ -309,7 +332,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
         Array.from(selectedEntities).map(id =>
           fetch(`${API_BASE}/entities/${id}`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify({ status: 'active' })
           })
         )
@@ -330,7 +353,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
         Array.from(selectedEntities).map(id =>
           fetch(`${API_BASE}/entities/${id}`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify({ status: 'inactive' })
           })
         )
