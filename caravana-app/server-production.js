@@ -3,6 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,6 +11,28 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3002;
+
+const SCRAPER_DIR = path.join(__dirname, 'src/scraper');
+
+// Helper para buscar tokens do banco de dados
+async function getTokensFromDB() {
+  const apifyConfig = await prisma.config.findUnique({ where: { key: 'APIFY_TOKEN' } });
+  const geminiConfig = await prisma.config.findUnique({ where: { key: 'GEMINI_TOKENS' } });
+  
+  let geminiTokens = [];
+  if (geminiConfig?.value) {
+    try {
+      geminiTokens = JSON.parse(geminiConfig.value);
+    } catch {
+      geminiTokens = [];
+    }
+  }
+  
+  return {
+    APIFY_TOKEN: apifyConfig?.value || '',
+    GEMINI_TOKENS: geminiTokens
+  };
+}
 
 console.log('🚀 Iniciando servidor...');
 console.log('📁 Diretório:', __dirname);
@@ -365,6 +388,498 @@ app.post('/api/scraper/configure', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Error saving config:', error);
     res.status(500).json({ error: 'Failed to save configuration' });
+  }
+});
+
+// Executar scraper Apify (protegido)
+app.post('/api/scraper/run-apify', requireAuth, async (req, res) => {
+  try {
+    const config = await getTokensFromDB();
+    
+    if (!config.APIFY_TOKEN || config.APIFY_TOKEN === 'YOUR_API_TOKEN_HERE') {
+      return res.status(400).json({ error: 'Token Apify não configurado' });
+    }
+
+    const { ApifyClient } = await import('apify-client');
+    const apifyClient = new ApifyClient({ token: config.APIFY_TOKEN });
+
+    const municipalitiesData = JSON.parse(fs.readFileSync(path.join(SCRAPER_DIR, 'municipalities.json'), 'utf8'));
+
+    const searchQueries = municipalitiesData.searchQueries || [
+      { text: 'centro cultural', type: 'associacao_cultural', category: 'Centro Cultural' },
+      { text: 'centro comunitário', type: 'associacao_cultural', category: 'Centro Comunitário' },
+      { text: 'associação cultural', type: 'associacao_cultural', category: 'Associação Cultural' },
+      { text: 'espaço cultural', type: 'associacao_cultural', category: 'Espaço Cultural' },
+      { text: 'casa de cultura', type: 'associacao_cultural', category: 'Casa de Cultura' }
+    ];
+
+    const limitedQueries = searchQueries.slice(0, 5);
+    const maxMunicipalities = 5;
+    let munCount = 0;
+    const allRecords = [];
+
+    console.log(`[APIFY] Iniciando scraper: ${maxMunicipalities} municípios x ${limitedQueries.length} queries`);
+
+    for (const region of municipalitiesData.regions) {
+      if (munCount >= maxMunicipalities) break;
+      
+      for (const mun of region.municipalities) {
+        if (munCount >= maxMunicipalities) break;
+        munCount++;
+
+        for (const query of limitedQueries) {
+          const queryText = typeof query === 'string' ? query : (query.text || query.query);
+          
+          try {
+            console.log(`[APIFY] ${queryText} em ${mun.name}...`);
+
+            const input = {
+              searchStringsArray: [`${queryText} em ${mun.name}, Espírito Santo, Brasil`],
+              locationQuery: `${mun.name}, Espírito Santo, Brasil`,
+              maxCrawledPlacesPerSearch: 20,
+              language: 'pt-BR',
+              countryCode: 'br',
+              skipClosedPlaces: false,
+              includeWebResults: false,
+              maxReviews: 0,
+              maxImages: 1,
+              exportPlaceUrls: false,
+              scrapeDirectories: false
+            };
+
+            const run = await apifyClient.actor('compass/crawler-google-places').call(input);
+
+            if (run.status === 'SUCCEEDED') {
+              const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
+              
+              const queryType = typeof query === 'string' ? 'associacao_cultural' : query.type;
+              const queryCategory = typeof query === 'string' ? 'Cultura' : query.category;
+              
+              console.log(`  ✓ Encontrados ${items.length} resultados`);
+              
+              for (const item of items) {
+                const title = item.title || item.name || '';
+                const address = item.address || '';
+                
+                if (title && title.length > 2) {
+                  allRecords.push({
+                    name: title,
+                    type: queryType,
+                    category: queryCategory,
+                    municipality: mun.name,
+                    region: region.name,
+                    lat: item.location?.lat || mun.lat,
+                    lng: item.location?.lng || mun.lng,
+                    address,
+                    phone: item.phone || item.phoneUnformatted || '',
+                    website: item.website || '',
+                    email: item.email || '',
+                    description: item.description || `Encontrado via Google Maps em ${mun.name}`,
+                    status: 'pending'
+                  });
+                }
+              }
+            }
+
+            await new Promise(r => setTimeout(r, 2000));
+          } catch (e) {
+            console.error(`Erro Apify "${queryText}" em ${mun.name}: ${e.message}`);
+          }
+        }
+      }
+    }
+
+    const unique = [];
+    const seen = new Set();
+    for (const r of allRecords) {
+      const key = (r.name + r.municipality + r.type).toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (!seen.has(key) && r.name && r.name.length > 2) {
+        seen.add(key);
+        unique.push(r);
+      }
+    }
+
+    let imported = 0;
+    let skipped = 0;
+    for (const entity of unique) {
+      try {
+        const existing = await prisma.entity.findFirst({
+          where: {
+            name: entity.name,
+            municipality: entity.municipality,
+            type: entity.type
+          }
+        });
+        if (existing) {
+          skipped++;
+          continue;
+        }
+        await prisma.entity.create({ data: entity });
+        imported++;
+      } catch (e) {
+        // duplicado ignorado
+      }
+    }
+
+    console.log(`Apify scraper: ${unique.length} encontrados, ${imported} importados, ${skipped} duplicados`);
+    res.json({ success: true, totalFound: unique.length, imported, skipped });
+  } catch (error) {
+    console.error('Error running Apify scraper:', error);
+    res.status(500).json({ error: 'Failed to run Apify scraper' });
+  }
+});
+
+// Enriquecer entidades com Gemini (protegido)
+app.post('/api/scraper/enrich', requireAuth, async (req, res) => {
+  try {
+    const config = await getTokensFromDB();
+    const tokens = config.GEMINI_TOKENS || [];
+    
+    if (tokens.length === 0) {
+      return res.status(400).json({ error: 'Token Gemini não configurado' });
+    }
+
+    const pendingEntities = await prisma.entity.findMany({
+      where: {
+        OR: [
+          { description: null },
+          { description: '' },
+          { website: null },
+          { website: '' },
+          { phone: null },
+          { phone: '' },
+          { email: null },
+          { email: '' }
+        ]
+      },
+      take: 30
+    });
+
+    console.log(`[ENRICH] Enriquecendo ${pendingEntities.length} entidades...`);
+
+    let tokenIndex = 0;
+    let updated = 0;
+    let failed = 0;
+
+    for (const entity of pendingEntities) {
+      const token = tokens[tokenIndex % tokens.length];
+      tokenIndex++;
+
+      try {
+        const prompt = `Busque informações sobre "${entity.name}" localizado em ${entity.municipality}, ${entity.region}, Espírito Santo, Brasil.
+
+Forneça as informações no seguinte formato JSON:
+{
+  "website": "URL do site oficial (se existir)",
+  "email": "email de contato (se existir)",
+  "phone": "telefone com DDD (se existir)",
+  "description": "Descrição curta e objetiva em até 200 caracteres sobre o que é e o que faz",
+  "services": "Principais serviços ou atividades oferecidas"
+}
+
+Se não encontrar alguma informação, use null. Seja preciso e objetivo.`;
+
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${token}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: {
+                temperature: 0.3,
+                topK: 20,
+                topP: 0.8,
+                maxOutputTokens: 500
+              }
+            })
+          }
+        );
+
+        if (!response.ok) {
+          failed++;
+          await new Promise(r => setTimeout(r, 1000));
+          continue;
+        }
+
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+        if (!text) {
+          failed++;
+          continue;
+        }
+
+        let enrichedData = {};
+        
+        try {
+          const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const jsonStr = jsonMatch[1] || jsonMatch[0];
+            enrichedData = JSON.parse(jsonStr);
+          }
+        } catch (parseError) {
+          console.log(`[ENRICH] Falha ao parsear JSON para ${entity.name}`);
+        }
+
+        const updateData = {};
+        
+        if (!entity.website && enrichedData.website && enrichedData.website !== 'null') {
+          updateData.website = enrichedData.website.trim();
+        }
+        
+        if (!entity.email && enrichedData.email && enrichedData.email !== 'null') {
+          updateData.email = enrichedData.email.trim();
+        }
+        
+        if (!entity.phone && enrichedData.phone && enrichedData.phone !== 'null') {
+          updateData.phone = enrichedData.phone.trim();
+        }
+        
+        if (!entity.description && enrichedData.description && enrichedData.description !== 'null') {
+          updateData.description = enrichedData.description.substring(0, 500).trim();
+        }
+        
+        if (!entity.services && enrichedData.services && enrichedData.services !== 'null') {
+          updateData.services = enrichedData.services.substring(0, 300).trim();
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          await prisma.entity.update({
+            where: { id: entity.id },
+            data: updateData
+          });
+          updated++;
+          console.log(`[ENRICH] ✓ ${entity.name}: ${Object.keys(updateData).join(', ')}`);
+        }
+
+        await new Promise(r => setTimeout(r, 2000));
+        
+      } catch (e) {
+        console.error(`[ENRICH] Erro ao enriquecer ${entity.name}: ${e.message}`);
+        failed++;
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    }
+
+    console.log(`[ENRICH] Concluído: ${updated} atualizadas, ${failed} falharam`);
+    res.json({ success: true, updated, failed, total: pendingEntities.length });
+  } catch (error) {
+    console.error('Error enriching entities:', error);
+    res.status(500).json({ error: 'Failed to enrich entities' });
+  }
+});
+
+// Executar scraper Gemini (protegido)
+app.post('/api/scraper/run-gemini', requireAuth, async (req, res) => {
+  try {
+    const { maxMunicipalities = 5 } = req.body;
+
+    const config = await getTokensFromDB();
+    const tokens = config.GEMINI_TOKENS || [];
+    
+    if (tokens.length === 0) {
+      return res.status(400).json({ error: 'Configure pelo menos um token Gemini primeiro' });
+    }
+
+    const PROGRESS_FILE = path.join(SCRAPER_DIR, 'gemini_progress.json');
+    const RESULTS_FILE = path.join(SCRAPER_DIR, 'gemini_results.json');
+
+    let progress = { lastRegionIdx: 0, lastMunIdx: 0, lastQueryIdx: 0 };
+    let existingResults = [];
+
+    if (fs.existsSync(PROGRESS_FILE)) {
+      progress = JSON.parse(fs.readFileSync(PROGRESS_FILE, 'utf8'));
+    }
+    if (fs.existsSync(RESULTS_FILE)) {
+      existingResults = JSON.parse(fs.readFileSync(RESULTS_FILE, 'utf8'));
+    }
+
+    const tokenQuotaHit = new Map();
+    for (let i = 0; i < tokens.length; i++) {
+      tokenQuotaHit.set(i, false);
+    }
+
+    const municipalitiesData = JSON.parse(fs.readFileSync(path.join(SCRAPER_DIR, 'municipalities.json'), 'utf8'));
+
+    const searchQueries = municipalitiesData.searchQueries?.map(q => ({
+      text: q.query || q.text || q,
+      type: q.type || 'associacao_cultural',
+      category: q.category || 'Cultura'
+    })) || [
+      { text: 'centro cultural', type: 'associacao_cultural', category: 'Centro Cultural' },
+      { text: 'associação cultural', type: 'associacao_cultural', category: 'Associação Cultural' },
+      { text: 'ponto de cultura', type: 'ponto_cultura', category: 'Ponto de Cultura' },
+      { text: 'rádio comunitária', type: 'radio_comunitaria', category: 'Rádio Comunitária' },
+      { text: 'cineclube', type: 'cineclube', category: 'Cineclube' }
+    ];
+
+    let municipalitiesToSearch = [];
+    for (let ri = progress.lastRegionIdx; ri < municipalitiesData.regions.length; ri++) {
+      const region = municipalitiesData.regions[ri];
+      for (let mi = (ri === progress.lastRegionIdx ? progress.lastMunIdx : 0); mi < region.municipalities.length; mi++) {
+        if (municipalitiesToSearch.length >= maxMunicipalities) break;
+        municipalitiesToSearch.push({ region, mun: region.municipalities[mi] });
+      }
+      if (municipalitiesToSearch.length >= maxMunicipalities) break;
+    }
+
+    const allRecords = [...existingResults];
+
+    const getAvailableToken = () => {
+      for (let i = 0; i < tokens.length; i++) {
+        if (!tokenQuotaHit.get(i)) return i;
+      }
+      return null;
+    };
+
+    let searchIdx = 0;
+    for (const { region, mun } of municipalitiesToSearch) {
+      for (const query of searchQueries) {
+        searchIdx++;
+        const tokenIdx = getAvailableToken();
+        if (tokenIdx === null) {
+          console.log(`[GEMINI] Todos os tokens esgotados`);
+          break;
+        }
+
+        console.log(`[GEMINI ${searchIdx}] ${query.text} em ${mun.name}...`);
+
+        try {
+          const prompt = `Liste TODAS as ${query.text} em ${mun.name}, Espírito Santo, Brasil.
+
+Para cada local encontrado, forneça as informações no formato:
+NOME | ENDEREÇO | TELEFONE | LATITUDE | LONGITUDE
+
+Liste apenas locais reais e verificados.`;
+
+          const token = tokens[tokenIdx];
+          const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${token}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                  temperature: 0.4,
+                  topK: 40,
+                  topP: 0.95,
+                  maxOutputTokens: 2048
+                }
+              })
+            }
+          );
+
+          const data = await response.json();
+
+          if (data.error) {
+            console.error(`Erro token ${tokenIdx}: ${data.error.message}`);
+            if (data.error.message?.includes('quota') || data.error.message?.includes('exceeded')) {
+              tokenQuotaHit.set(tokenIdx, true);
+            }
+            continue;
+          }
+
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+          if (!text || text.length < 10) {
+            continue;
+          }
+
+          const lines = text.split('\n').filter(l => l.trim());
+
+          for (const line of lines) {
+            if (line.toLowerCase().includes('exemplo') || line.length < 10) {
+              continue;
+            }
+
+            let name = '', address = '', phone = '', lat = mun.lat, lng = mun.lng;
+
+            if (line.includes('|')) {
+              const parts = line.split('|').map(p => p.trim());
+              name = parts[0] || '';
+              address = parts[1] || '';
+              phone = parts[2] || '';
+              
+              if (parts[3] && !isNaN(parseFloat(parts[3]))) {
+                lat = parseFloat(parts[3]);
+              }
+              if (parts[4] && !isNaN(parseFloat(parts[4]))) {
+                lng = parseFloat(parts[4]);
+              }
+            } else {
+              name = line.split(/[-–—,]/)[0].trim();
+            }
+
+            name = name.replace(/^[\d\.\)\-\*\•\→]+\s*/, '').trim();
+            
+            if (!name || name.length < 3 || name.length > 100) continue;
+
+            allRecords.push({
+              name: name,
+              type: query.type,
+              category: query.category || 'Cultura',
+              municipality: mun.name,
+              region: region.name,
+              lat: lat,
+              lng: lng,
+              address: address || '',
+              phone: phone || '',
+              website: '',
+              description: `Encontrado via Gemini: ${query.text} em ${mun.name}`,
+              status: 'pending'
+            });
+          }
+
+          await new Promise(r => setTimeout(r, 2500));
+        } catch (e) {
+          console.error(`Erro na busca ${query.text} em ${mun.name}: ${e.message}`);
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+    }
+
+    const unique = [];
+    const seen = new Set();
+    for (const r of allRecords) {
+      const key = (r.name + r.municipality + r.type).toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (!seen.has(key) && r.name && r.name.length > 2) {
+        seen.add(key);
+        unique.push(r);
+      }
+    }
+
+    let imported = 0;
+    let skipped = 0;
+    for (const entity of unique) {
+      try {
+        const existing = await prisma.entity.findFirst({
+          where: {
+            name: entity.name,
+            municipality: entity.municipality,
+            type: entity.type
+          }
+        });
+        if (existing) {
+          skipped++;
+          continue;
+        }
+        await prisma.entity.create({ data: entity });
+        imported++;
+      } catch (e) {
+        // duplicado ignorado
+      }
+    }
+
+    if (fs.existsSync(PROGRESS_FILE)) fs.unlinkSync(PROGRESS_FILE);
+    if (fs.existsSync(RESULTS_FILE)) fs.unlinkSync(RESULTS_FILE);
+
+    console.log(`Gemini scraper: ${unique.length} encontrados, ${imported} importados, ${skipped} duplicados`);
+    res.json({ success: true, totalFound: unique.length, imported, skipped, searched: municipalitiesToSearch.length });
+  } catch (error) {
+    console.error('Error running Gemini scraper:', error);
+    res.status(500).json({ error: 'Failed to run Gemini scraper' });
   }
 });
 
