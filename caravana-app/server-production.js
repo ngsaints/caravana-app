@@ -102,6 +102,22 @@ app.get('/api/entities', async (req, res) => {
   }
 });
 
+// Buscar entidade por ID (público)
+app.get('/api/entities/:id', async (req, res) => {
+  try {
+    const entity = await prisma.entity.findUnique({
+      where: { id: req.params.id }
+    });
+    if (!entity) {
+      return res.status(404).json({ error: 'Entity not found' });
+    }
+    res.json(entity);
+  } catch (error) {
+    console.error('Error fetching entity:', error);
+    res.status(500).json({ error: 'Failed to fetch entity' });
+  }
+});
+
 // Criar nova entidade (protegido)
 app.post('/api/entities', requireAuth, async (req, res) => {
   try {
