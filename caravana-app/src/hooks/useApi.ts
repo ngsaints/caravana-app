@@ -190,9 +190,13 @@ export function useScraperConfigure() {
     setLoading(true);
     setError(null);
     try {
+      const token = localStorage.getItem('caravana_auth_token');
       const res = await fetch(`${API_BASE}/scraper/configure`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ apifyToken, geminiToken, geminiTokens })
       });
       if (!res.ok) {
@@ -272,9 +276,13 @@ export function useScraperRunGemini() {
     setLoading(true);
     setError(null);
     try {
+      const token = localStorage.getItem('caravana_auth_token');
       const res = await fetch(`${API_BASE}/scraper/run-gemini`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ maxMunicipalities })
       });
       if (!res.ok) {
@@ -302,7 +310,14 @@ export function useScraperRunApify() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/scraper/run-apify`, { method: 'POST' });
+      const token = localStorage.getItem('caravana_auth_token');
+      const res = await fetch(`${API_BASE}/scraper/run-apify`, { 
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || 'Failed to run Apify scraper');
@@ -328,7 +343,14 @@ export function useScraperEnrich() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/scraper/enrich`, { method: 'POST' });
+      const token = localStorage.getItem('caravana_auth_token');
+      const res = await fetch(`${API_BASE}/scraper/enrich`, { 
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || 'Failed to enrich entities');
