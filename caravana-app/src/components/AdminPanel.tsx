@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useEntities, useStats, ENTITY_TYPES, CATEGORIES, useMunicipalities, useCreateEntity, useExportEntities, useScraperConfigure, useScraperRunApify, useScraperRunGemini, useScraperEnrich, type Entity } from '../hooks/useApi';
+import { useEntities, useStats, ENTITY_TYPES, CATEGORIES, useMunicipalities, useCreateEntity, useExportEntities, useScraperConfigure, useScraperRunApify, useScraperRunGemini, useScraperEnrich, useScraperLiveStatus, useScraperStop, type Entity } from '../hooks/useApi';
 
 interface AdminPanelProps {
   onBack: () => void;
@@ -55,6 +55,8 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const { runApify, loading: runningApify } = useScraperRunApify();
   const { runGemini, loading: runningGemini } = useScraperRunGemini();
   const { enrich, loading: enriching } = useScraperEnrich();
+  const scraperLiveStatus = useScraperLiveStatus(true); // Habilitar polling apenas no AdminPanel
+  const { stopScraper, loading: stoppingScraper } = useScraperStop();
 
   // Carregar status do scraper ao montar o componente
   useEffect(() => {
@@ -512,6 +514,45 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
         </div>
       )}
 
+      {scraperLiveStatus?.running && (
+        <div className="scraper-live-status">
+          <div className="status-header">
+            <h3>🤖 Scraper em Execução</h3>
+            {scraperLiveStatus.shouldStop && <span className="stopping-badge">Parando...</span>}
+          </div>
+          <div className="status-grid">
+            <div className="status-item">
+              <span className="status-label">Progresso:</span>
+              <span className="status-value">{scraperLiveStatus.progress} / {scraperLiveStatus.total}</span>
+            </div>
+            <div className="status-item">
+              <span className="status-label">Encontrados:</span>
+              <span className="status-value success">{scraperLiveStatus.found}</span>
+            </div>
+            <div className="status-item">
+              <span className="status-label">Importados:</span>
+              <span className="status-value success">{scraperLiveStatus.imported}</span>
+            </div>
+            <div className="status-item">
+              <span className="status-label">Duplicados:</span>
+              <span className="status-value warning">{scraperLiveStatus.skipped}</span>
+            </div>
+          </div>
+          <div className="status-current">
+            <div className="current-info">
+              <span className="current-label">Buscando:</span>
+              <span className="current-text">{scraperLiveStatus.currentQuery} em {scraperLiveStatus.currentMunicipality}</span>
+            </div>
+            <div className="progress-bar">
+              <div 
+                className="progress-fill" 
+                style={{ width: `${scraperLiveStatus.total > 0 ? (scraperLiveStatus.progress / scraperLiveStatus.total) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="admin-toolbar">
         <div className="toolbar-row">
           <div className="search-box">
@@ -596,44 +637,60 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
             
             {scraperStatus?.configured && (
               <>
-                <button
-                  className="btn-action"
-                  onClick={async () => {
-                    if (confirm('Iniciar scraping com Apify? Isso pode levar vários minutos...')) {
-                      try {
-                        const result = await runApify();
-                        alert(`Scraping concluído! Found: ${result.totalFound}, Imported: ${result.imported}, Skipped: ${result.skipped}`);
-                        refetch();
-                      } catch (err) {
-                        alert('Erro ao executar scraper');
+                {!scraperLiveStatus?.running ? (
+                  <button
+                    className="btn-action"
+                    onClick={async () => {
+                      if (confirm('Iniciar scraping com Apify? Isso pode levar vários minutos...')) {
+                        try {
+                          await runApify();
+                        } catch (err) {
+                          alert('Erro ao iniciar scraper Apify');
+                        }
                       }
-                    }
-                  }}
-                  disabled={runningApify}
-                >
-                  {runningApify ? '⏳ Executando...' : '🔗 Apify'}
-                </button>
+                    }}
+                    disabled={runningApify}
+                  >
+                    {runningApify ? '⏳ Iniciando...' : '🔗 Apify'}
+                  </button>
+                ) : (
+                  <button
+                    className="btn-danger"
+                    onClick={async () => {
+                      if (confirm('Parar o scraper? Os dados já encontrados serão salvos.')) {
+                        try {
+                          await stopScraper();
+                        } catch (err) {
+                          alert('Erro ao parar scraper');
+                        }
+                      }
+                    }}
+                    disabled={stoppingScraper || scraperLiveStatus?.shouldStop}
+                  >
+                    {scraperLiveStatus?.shouldStop ? '⏳ Parando...' : '⏹️ Parar'}
+                  </button>
+                )}
                 
-                <button
-                  className="btn-action"
-                  onClick={async () => {
-                    const munCount = prompt(`Quantos municípios buscar? (1-${geminiMaxMun})`, String(geminiMaxMun));
-                    if (!munCount) return;
-                    const count = parseInt(munCount) || geminiMaxMun;
-                    if (confirm(`Iniciar busca com Gemini em ${count} municípios? Isso pode levar vários minutos...`)) {
-                      try {
-                        const result = await runGemini(count);
-                        alert(`Busca concluída! Found: ${result.totalFound}, Imported: ${result.imported}, Skipped: ${result.skipped}\n${result.message || ''}`);
-                        refetch();
-                      } catch (err) {
-                        alert('Erro ao executar busca Gemini');
+                {!scraperLiveStatus?.running ? (
+                  <button
+                    className="btn-action"
+                    onClick={async () => {
+                      const munCount = prompt(`Quantos municípios buscar? (1-${geminiMaxMun})`, String(geminiMaxMun));
+                      if (!munCount) return;
+                      const count = parseInt(munCount) || geminiMaxMun;
+                      if (confirm(`Iniciar busca com Gemini em ${count} municípios?`)) {
+                        try {
+                          await runGemini(count);
+                        } catch (err) {
+                          alert('Erro ao iniciar scraper');
+                        }
                       }
-                    }
-                  }}
-                  disabled={runningGemini}
-                >
-                  {runningGemini ? '⏳ Executando...' : '🤖 Gemini'}
-                </button>
+                    }}
+                    disabled={runningGemini}
+                  >
+                    {runningGemini ? '⏳ Iniciando...' : '🤖 Gemini'}
+                  </button>
+                ) : null}
                 
                 <button
                   className="btn-action"

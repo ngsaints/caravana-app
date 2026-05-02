@@ -302,6 +302,77 @@ export function useScraperRunGemini() {
   return { runGemini, loading, error };
 }
 
+export function useScraperLiveStatus(enabled: boolean = false) {
+  const [status, setStatus] = useState<{
+    running: boolean;
+    shouldStop: boolean;
+    found: number;
+    imported: number;
+    skipped: number;
+    currentMunicipality: string;
+    currentQuery: string;
+    progress: number;
+    total: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    let interval: number;
+    
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/scraper/live-status`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setStatus(data);
+      } catch (err) {
+        // Silenciar erro quando não está no admin
+      }
+    };
+
+    fetchStatus();
+    interval = window.setInterval(fetchStatus, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [enabled]);
+
+  return status;
+}
+
+export function useScraperStop() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const stopScraper = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem('caravana_auth_token');
+      const res = await fetch(`${API_BASE}/scraper/stop`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to stop scraper');
+      }
+      return await res.json();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { stopScraper, loading, error };
+}
+
 export function useScraperRunApify() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
